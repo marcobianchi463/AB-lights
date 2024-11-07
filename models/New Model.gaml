@@ -8,14 +8,14 @@
 model tutorial_gis_city_traffic
 
 global {
-	file shape_file_buildings <- file("../includes/building.shp");
-	file shape_file_roads <- file("../includes/road.shp");
-	file shape_file_bounds <- file("../includes/bounds.shp");
+	file shape_file_buildings <- file("../includes/carta_sintesi_geo.shp");
+	file shape_file_roads <- file("../includes/manto_stradale_2009_geo.shp");
+	file shape_file_bounds <- file("../includes/carta_sintesi_geo.shp");
 	geometry shape <- envelope(shape_file_bounds);
 	float step <- 10 #mn;
 	
 	init {
-		create building from: shape_file_buildings with: [type::string(read ("NATURE"))] {
+		create carta_sintesi_geo from: shape_file_buildings with: [type::string(read ("NATURE"))] {
 			if type="Industrial" {
 				color <- #blue ;
 			}
@@ -24,7 +24,7 @@ global {
 	}
 }
 
-species building {
+species carta_sintesi_geo {
 	string type; 
 	rgb color <- #gray  ;
 	
@@ -34,7 +34,7 @@ species building {
 }
 
 species road  {
-	rgb color <- #black ;
+	rgb color <- #blue ;
 	aspect base {
 		draw shape color: color ;
 	}
@@ -47,7 +47,7 @@ experiment road_traffic type: gui {
 		
 	output {
 		display city_display type:3d {
-			species building aspect: base ;
+			species carta_sintesi_geo aspect: base ;
 			species road aspect: base ;
 		}
 	}
