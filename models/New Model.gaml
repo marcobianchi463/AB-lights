@@ -8,9 +8,10 @@
 model tutorial_gis_city_traffic
 
 global {
-	file shape_file_buildings <- file("../includes/carta_sintesi_geo.shp");
-	file shape_file_roads <- file("../includes/manto_stradale_2009_geo.shp");
-	file shape_file_bounds <- file("../includes/carta_sintesi_geo.shp");
+	//file shape_file_buildings <- file("../includes/carta_sintesi_geo.shp");
+	file shape_file_buildings <- file("../includes/mygeodata/map/buildings-polygon.shp"); 
+	file shape_file_roads <- file("../includes/mygeodata/map/roads-line.shp");
+	file shape_file_bounds <- file("../includes/mygeodata/map/buildings-polygon.shp");
 	geometry shape <- envelope(shape_file_bounds);
 	float step <- 10 #mn;
 	
