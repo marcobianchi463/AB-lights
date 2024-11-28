@@ -14,22 +14,27 @@ global {
 	file shape_file_bounds <- file("../includes/mygeodata/map/buildings-polygon.shp");
 	geometry shape <- envelope(shape_file_bounds);
 	float step <- 10 #mn;
-	
+	graph the_graph;
 	init {
 		create carta_sintesi_geo from: shape_file_buildings with: [type::string(read ("NATURE"))] {
 			if type="Industrial" {
 				color <- #blue ;
 			}
 		}
+
 		create road from: shape_file_roads ;
-		
-		create goal  {
-			 location <- any_location_in (one_of(road)); 
-		}
-		create vehicle number: 100 {
+		//test 
+
+		//creazione grafico da strade
+		the_graph <- as_edge_graph(road);
+		create goal from: the_graph.vertices; 
+		create vehicle number: 30 {
 			 target <- one_of (goal) ; 
 			 location <- any_location_in (one_of(road));
 		} 
+		write the_graph;
+		write "Edges : "+length(the_graph.edges);
+		write "Nodes : "+length(the_graph.vertices);
 	}
 }
 
@@ -42,15 +47,26 @@ species carta_sintesi_geo {
 	}
 }
 
-species goal{aspect default {
-		draw circle(3) color:#red;
-	}}
-species vehicle {
-	goal target;
+species goal{
 	aspect default {
-		draw circle(3) color: #green;
+		draw circle(3) color:#red;
 	}
 }
+species vehicle skills: [moving]{
+	goal target;
+	path my_path;
+	reflex goto {
+		write "Vehicle at: " + location + " moving towards: " + target.location;
+		do goto on:the_graph target:target.location speed:0.1;
+		//do wander speed:10.0 on:the_graph;
+		//do move;
+	}
+	aspect default {
+		draw circle(5) color: #green;
+	}
+}
+
+
 
 species road  {
 	rgb color <- #blue ;
@@ -65,10 +81,11 @@ experiment road_traffic type: gui {
 	parameter "Shapefile for the bounds:" var: shape_file_bounds category: "GIS" ;
 		
 	output {
-		display city_display type:3d {
+		display city_display type:2d {
 			species carta_sintesi_geo aspect: base ;
 			species road aspect: base ;
 			species vehicle aspect:default;
+			species goal aspect:default;
 		}
 	}
 }
