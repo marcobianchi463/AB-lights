@@ -21,6 +21,14 @@ global {
 			}
 		}
 		create road from: shape_file_roads ;
+		
+		create goal  {
+			 location <- any_location_in (one_of(road)); 
+		}
+		create vehicle number: 100 {
+			 target <- one_of (goal) ; 
+			 location <- any_location_in (one_of(road));
+		} 
 	}
 }
 
@@ -30,6 +38,16 @@ species carta_sintesi_geo {
 	
 	aspect base {
 		draw shape color: color ;
+	}
+}
+
+species goal{aspect default {
+		draw circle(3) color:#red;
+	}}
+species vehicle {
+	goal target;
+	aspect default {
+		draw circle(3) color: #green;
 	}
 }
 
@@ -49,6 +67,7 @@ experiment road_traffic type: gui {
 		display city_display type:3d {
 			species carta_sintesi_geo aspect: base ;
 			species road aspect: base ;
+			species vehicle aspect:default;
 		}
 	}
 }
