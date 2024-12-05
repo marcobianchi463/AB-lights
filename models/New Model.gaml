@@ -12,15 +12,16 @@ global {
 	file shape_file_buildings <- file("../includes/mygeodata/map/buildings-polygon.shp"); 
 	file shape_file_roads <- file("../includes/mygeodata/map/roads-line.shp");
 	file shape_file_bounds <- file("../includes/mygeodata/map/buildings-polygon.shp");
-	geometry shape <- envelope(shape_file_bounds);
+	geometry shape <- envelope(shape_file_roads);
 	float step <- 10 #mn;
 	graph the_graph;
 	init {
-		create carta_sintesi_geo from: shape_file_buildings with: [type::string(read ("NATURE"))] {
+		/*create carta_sintesi_geo from: shape_file_buildings with: [type::string(read ("NATURE"))] {
 			if type="Industrial" {
 				color <- #blue ;
 			}
-		}
+		}*/
+		create building from: shape_file_buildings;
 
 		create road from: shape_file_roads ;
 		//test 
@@ -28,9 +29,11 @@ global {
 		//creazione grafico da strade
 		the_graph <- as_edge_graph(road);
 		create goal from: the_graph.vertices; 
-		create vehicle number: 30 {
-			 target <- one_of (goal) ; 
+		create vehicle number: 800 {
+			 target <- any_location_in(one_of (building)) ; 
 			 location <- any_location_in (one_of(road));
+			 
+		//
 		} 
 		write the_graph;
 		write "Edges : "+length(the_graph.edges);
@@ -52,12 +55,28 @@ species goal{
 		draw circle(3) color:#red;
 	}
 }
+species building{
+	rgb color <- #gray  ;
+	aspect default {
+		draw shape color:color;
+	}
+}
 species vehicle skills: [moving]{
-	goal target;
-	path my_path;
+	point target;
+	int tries;
+	
 	reflex goto {
-		write "Vehicle at: " + location + " moving towards: " + target.location;
-		do goto on:the_graph target:target.location speed:0.1;
+		loop while: current_path = nil {
+		    	target <- any_location_in(one_of (building)) ; 
+		  		do goto on:the_graph target:target speed:0.1;
+		  		tries <- tries +1;
+		  		write "Ciao";
+		  		if tries>20 {
+		  			location <- any_location_in(one_of(road));
+		  		}
+			}
+		write "Vehicle at: " + location + " moving towards: " + target;
+		do goto on:the_graph target:target speed:0.1;
 		//do wander speed:10.0 on:the_graph;
 		//do move;
 	}
@@ -82,7 +101,7 @@ experiment road_traffic type: gui {
 		
 	output {
 		display city_display type:2d {
-			species carta_sintesi_geo aspect: base ;
+			species building aspect: default ;
 			species road aspect: base ;
 			species vehicle aspect:default;
 			species goal aspect:default;
