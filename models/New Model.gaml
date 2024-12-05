@@ -41,14 +41,6 @@ global {
 	}
 }
 
-species carta_sintesi_geo {
-	string type; 
-	rgb color <- #gray  ;
-	
-	aspect base {
-		draw shape color: color ;
-	}
-}
 
 species goal{
 	aspect default {
@@ -93,6 +85,7 @@ species road  {
 		draw shape color: color ;
 	}
 }
+
 
 experiment road_traffic type: gui {
 	parameter "Shapefile for the buildings:" var: shape_file_buildings category: "GIS" ;
