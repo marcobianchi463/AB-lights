@@ -10,9 +10,9 @@ model tutorial_gis_city_traffic
 global {
 	//file shape_file_buildings <- file("../includes/carta_sintesi_geo.shp");
 
-	file shape_file_buildings <- file("../includes/mygeodata/map/buildings-polygon.shp"); 
-	file shape_file_roads <- file("../includes/mygeodata/map/roads-line.shp");
-	file shape_file_bounds <- file("../includes/mygeodata/map/buildings-polygon.shp");
+	file shape_file_buildings <- file("../includes/mygeodata/qgis/build.shp"); 
+	file shape_file_roads <- file("../includes/mygeodata/qgis/split-roads.shp");
+	file shape_file_bounds <- file("../includes/mygeodata/qgis/split-roads.shp");
 	geometry shape <- envelope(shape_file_roads);
 	
 	float step <- 10 #mn;
@@ -33,7 +33,7 @@ global {
 		//creazione grafico da strade
 		the_graph <- as_edge_graph(road);
 		create goal from: the_graph.vertices; 
-		create vehicle number: 800 {
+		create vehicle number: 80 {
 			 target <- any_location_in(one_of (building)) ; 
 			 location <- any_location_in (one_of(road));
 			 
@@ -48,7 +48,7 @@ global {
 
 species goal{
 	aspect default {
-		draw circle(3) color:#red;
+		draw circle(2) color:#red;
 	}
 }
 species building{
@@ -64,7 +64,7 @@ species vehicle skills: [moving]{
 	reflex goto {
 		loop while: current_path = nil {
 		    	target <- any_location_in(one_of (building)) ; 
-		  		do goto on:the_graph target:target speed:0.1;
+		  		do goto on:the_graph target:target speed:0.005;
 		  		tries <- tries +1;
 		  		write "Ciao";
 		  		if tries>20 {
@@ -72,18 +72,18 @@ species vehicle skills: [moving]{
 		  		}
 			}
 		write "Vehicle at: " + location + " moving towards: " + target;
-		do goto on:the_graph target:target speed:0.1;
+		do goto on:the_graph target:target speed:0.005;
 		//do wander speed:10.0 on:the_graph;
 		//do move;
 	}
 	aspect default {
-		draw circle(5) color: #green;
+		draw circle(3) color: #green;
 	}
 }
 
 
 
-species road  {
+species road /*skills: [road_skill]*/{
 	rgb color <- #blue ;
 	aspect base {
 		draw shape color: color ;
