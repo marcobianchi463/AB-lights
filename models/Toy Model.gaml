@@ -19,6 +19,7 @@ global {
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
+	bool intelligent_g<-false;
 	graph the_graph ;
 	init {
 		create building from: shape_file_buildings ;
@@ -140,16 +141,23 @@ species road_node skills: [intersection_skill] {
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	
+	
+	
 	reflex classic_update_state when: is_traffic_light {
-		timer <- timer + 1 ;
-		if (!road_even_ok and timer >= green_time) {
-			timer <- 0 ;
-			color <- #red ;
-			do switch_state ;			
-		} else if (timer >= red_time) {
-			timer <- 0 ;
-			color <- #green ;
-			do switch_state ;
+		
+		if intelligent_g{
+			return;
+		}else{
+			timer <- timer + 1 ;
+			if (!road_even_ok and timer >= green_time) {
+				timer <- 0 ;
+				color <- #red ;
+				do switch_state ;			
+			} else if (timer >= red_time) {
+				timer <- 0 ;
+				color <- #green ;
+				do switch_state ;
+			}
 		}
 	}
 	
@@ -184,6 +192,7 @@ experiment ToyModel type: gui {
 	parameter "Vehicle dimension:" var: dimension ;
 	parameter "Number of vehicles:" var: nb_vehicles ;
 	parameter "Maximum speed:" var: v_maxspeed ;
+	parameter "Intelligent traffic lights:" var:intelligent_g;
 		
 	output {
 		display city_display type:2d {
