@@ -24,7 +24,7 @@ global {
 	init {
 		create building from: shape_file_buildings ;
 		create road from: shape_file_roads with:[
-			num_lanes::max(2, int(read("lanes"))),
+			num_lanes::max(1, int(read("lanes"))),
 			maxspeed::max(30.0 + rnd(5), (read("maxspeed_t")="urban:it")? 30.0+ rnd(5) : 50.0+rnd(5)),
 			oneway::string(read("oneway"))]
 			{
@@ -89,10 +89,13 @@ global {
 // Veicoli definiti con skill advanced_driving
 species vehicle skills: [driving] {
 	rgb color <- rnd_color(255) ;
+	float offset_distance<-0.2;
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
 		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_lane_change_up <- 0.2;
+		proba_lane_change_down <- 0.2;
 	}
 	
 	reflex time_to_go when: final_target = nil {
@@ -121,7 +124,7 @@ species vehicle skills: [driving] {
 	}
 	// sposto le auto in base alla corsia occupata
 	point eval_loc {
-		float val <- (road(current_road).num_lanes - current_lane) + 0.5 ;
+		float val <- (road(current_road).num_lanes - current_lane) + offset_distance ;
 		val <- on_linked_road ? val * - 1 : val ;
 		if (val = 0) {
 			return location ; 
@@ -158,7 +161,7 @@ species road_node skills: [intersection_skill] {
 	reflex classic_update_state when: is_traffic_light {
 		
 		if intelligent_g{
-			return;
+			timer <-timer+1;
 		}else{
 			timer <- timer + 1 ;
 			if (!road_even_ok and timer >= green_time) {
