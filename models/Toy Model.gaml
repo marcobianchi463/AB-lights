@@ -64,8 +64,13 @@ global {
 				// per far capire che j è una strada 
 				if (road(j).linked_road != nil) {
 					i.linked_count <- i.linked_count + 1 ;
+					ordered_road_list <+ j ; //aggiungo la strada alla lista ordinata solo se è oneway
 				}
 			}
+			ordered_road_list <<+ i.roads_out;
+			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
+			sort_by(ordered_road_list, atan{ (location.y-i.location.y) / (location.x-i.location.x)} + (location.y < i.location.y) ? 180 : 0);
+
 			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
 			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
 			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and !(i.linked_count = length(i.roads_out))) {
