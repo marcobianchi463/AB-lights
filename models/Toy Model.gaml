@@ -108,6 +108,10 @@ species vehicle skills: [driving] {
 		current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
 	}
 	reflex move when: final_target != nil {
+		//if dot_product({cos(heading), sin(heading)},{0,0}){
+		//	//imposta nelle corsie utilizzabili quella con indice maggiore(più interna)
+		//	allowed_lanes <- [road(current_road).num_lanes-1];
+		//}	
 		do drive ;
 	}
 	aspect default {
@@ -155,8 +159,9 @@ species road_node skills: [intersection_skill] {
 	rgb color <- #green ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
+	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
 	
-	
+
 	
 	reflex classic_update_state when: is_traffic_light {
 		
