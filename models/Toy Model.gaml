@@ -110,10 +110,22 @@ species vehicle skills: [advanced_driving] {
 	//aspetto rettangolare con freccia direzionale
 	aspect rect {
 		if (current_road != nil) {
-			draw rectangle(vehicle_length*dimension, dimension #m) at: location color: color rotate: heading border: #black;
-			draw triangle(1 #m) at: location color: #white rotate: heading + 90 ;
+			point loc <- eval_loc() ;
+			draw rectangle(vehicle_length*dimension, dimension #m) at: loc color: color rotate: heading border: #black;
+			draw triangle(1 #m) at: loc color: #white rotate: heading + 90 ;
 		}
 	}
+	// sposto le auto in base alla corsia occupata
+	point eval_loc {
+		float val <- (road(current_road).num_lanes - current_lane) + 0.5 ;
+		val <- on_linked_road ? val * - 1 : val ;
+		if (val = 0) {
+			return location ; 
+		} else {
+			return (location + {cos(heading + 90) * val, sin(heading + 90) * val}) ;
+		}
+	}
+
 }
 
 species road skills: [road_skill] {
