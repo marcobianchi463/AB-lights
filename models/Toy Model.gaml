@@ -64,26 +64,36 @@ global {
 				// per far capire che j è una strada 
 				if (road(j).linked_road != nil) {
 					i.linked_count <- i.linked_count + 1 ;
-					ordered_road_list <+ j ; //aggiungo la strada alla lista ordinata solo se è oneway
+					
+				}else{
+					add j to: i.ordered_road_list  ; //aggiungo la strada alla lista ordinata solo se è oneway
 				}
+				
+				
 			}
-			ordered_road_list <<+ i.roads_out;
+			
+			i.roads_in <- i.roads_in sort_by(-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)));
+			i.ordered_road_list <<+ i.roads_out;
 			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
-			sort_by(ordered_road_list, atan{ (location.y-i.location.y) / (location.x-i.location.x)} + (location.y < i.location.y) ? 180 : 0);
-
+			//NON toccare la riga sotto
+			i.ordered_road_list <- i.ordered_road_list sort_by (-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)) );
+			
+			
 			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
 			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
 			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and !(i.linked_count = length(i.roads_out))) {
 				i.is_traffic_light <- true ;
 				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
 				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
-				//inizializzo lo stato iniziale del semaforo
-				loop j from: 0 to: length(i.roads_in) - 1 step: 2 {
-					add i.roads_in at j to: i.roads_in_even ;
+				
+				
+				loop j from:0 to:length(i.roads_in)-1 step:2{
+					add i.roads_in[j] to: i.roads_in_even;
 				}
-				loop j from: 1 to: length(i.roads_in) - 1 step: 2 {
-					add i.roads_in at j to: i.roads_in_odd ;
+				loop j from:1 to:length(i.roads_in)-1 step:2{
+					add i.roads_in[j] to: i.roads_in_odd;
 				}
+				
 				add i.roads_in_even to: i.stop ;
 			}
 			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
@@ -94,6 +104,7 @@ global {
 // Veicoli definiti con skill advanced_driving
 species vehicle skills: [driving] {
 	rgb color <- rnd_color(255) ;
+	
 	float offset_distance<-0.2;
 	init{
 		vehicle_length <- 3.8 #m ;
@@ -101,6 +112,7 @@ species vehicle skills: [driving] {
 		proba_respect_priorities <- 0.95 + rnd(0.04);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
+		
 	}
 	
 	reflex time_to_go when: final_target = nil {
@@ -171,7 +183,29 @@ species road_node skills: [intersection_skill] {
 	reflex classic_update_state when: is_traffic_light {
 		
 		if intelligent_g{
+			int count_odd<-0;
+			int count_even<-0;
+			int tolerance <-0;
+			int min_timer <-15;
 			timer <-timer+1;
+			loop k over: roads_in_even{
+				count_even+<- count(road(k).all_agents,true);
+			}
+			loop l over: roads_in_odd{
+				count_odd+<- count(road(l).all_agents,true);
+			}
+			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer{
+				timer <- 0 ;
+				color <- #green ;
+				do switch_state ;
+			}else if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer{
+				timer <- 0 ;
+				color <- #red ;
+				do switch_state ;	
+			}
+			
+			
+			
 		}else{
 			timer <- timer + 1 ;
 			if (!road_even_ok and timer >= green_time) {
