@@ -15,7 +15,7 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1 #second ;
-	int nb_vehicles <- 80 ;
+	int nb_vehicles <- 240 ;
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
@@ -24,18 +24,20 @@ global {
 		create building from: shape_file_buildings ;
 		create road from: shape_file_roads with:[
 			num_lanes::max(2, int(read("lanes"))),
-			maxspeed::max(30.0, (read("maxspeed_t")="urban:it")? 30.0 : 50.0),
-			oneway::string(read("oneway"))]{
-				switch oneway {
-					match "no" {
+			maxspeed::max(30.0 + rnd(5), (read("maxspeed_t")="urban:it")? 30.0+ rnd(5) : 50.0+rnd(5)),
+			oneway::string(read("oneway"))]
+			{
+				if oneway !="yes"{
+					
 						create road {
 							num_lanes <- myself.num_lanes ;
 		                    shape <- polyline(reverse(myself.shape.points)) ;
+		                    color <- #green;
 		                    maxspeed <- myself.maxspeed ;
 		                    linked_road <- myself ;
 		                    myself.linked_road <- self ;
 						}					
-					}
+					
 				}
 			}
 		create road_node from: shape_file_nodes ;
@@ -84,19 +86,20 @@ global {
 }
 
 // Veicoli definiti con skill advanced_driving
-species vehicle skills: [advanced_driving] {
+species vehicle skills: [driving] {
 	rgb color <- rnd_color(255) ;
-	/*init{
+	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-	}*/
+		proba_respect_priorities <- 0.95 + rnd(0.04);
+	}
 	
 	reflex time_to_go when: final_target = nil {
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
 		if (flip(respawn_prob)){
-			location <- one_of(road_node) ;
+			location <- one_of(building).location ;
 		}
 		current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
 	}
@@ -129,9 +132,9 @@ species road_node skills: [intersection_skill] {
 	bool is_traffic_light <- false ;
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	
-	int green_time <- 60 #s ;
-	int red_time <- 60 #s ;
+	int switch_time <- 20 + rnd(20);
+	int green_time <- int(switch_time #s) ;
+	int red_time <- int(switch_time #s) ;
 	bool road_even_ok <- true ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #green ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
