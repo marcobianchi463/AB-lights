@@ -170,6 +170,8 @@ species vehicle skills: [driving] {
 	
 	reflex left_lane when: user_switch and road_now != current_road and final_target != nil{
 		n <- length(road_node(current_target).ordered_road_list);
+		left_turn <- false ;
+		right_side_driving <- true ;
 		if (n > 2){
 			if (road(current_road).oneway != "yes"){
 				i_in <- road_node(current_target).ordered_road_list index_of road(road(current_road).linked_road) ;
@@ -178,9 +180,9 @@ species vehicle skills: [driving] {
 			}
 			i_out <- road_node(current_target).ordered_road_list index_of road(next_road) ;
 			if (i_in < i_out){
-				left_turn <- i_out-i_in<max(2,n/2) ? true : false ;
+				left_turn <- i_out-i_in>min(2,n/2) ? true : false ;
 			}else{
-				left_turn <- n-(i_in-i_out)<max(2,n/2) ? true : false ;
+				left_turn <- n-(i_in-i_out)>min(2,n/2) ? true : false ;
 			}
 			if (left_turn and current_road != nil)
 			{
