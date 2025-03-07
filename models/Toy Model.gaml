@@ -172,7 +172,7 @@ species vehicle skills: [driving] {
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
 		right_side_driving <- true ;
-		acc_bias <- 10.0 ;
+		acc_bias <- 1.0 ;
 		if (n > 2){
 			if (road(current_road).oneway != "yes"){
 				i_in <- road_node(current_target).ordered_road_list index_of road(road(current_road).linked_road) ;
@@ -192,7 +192,7 @@ species vehicle skills: [driving] {
 				acc_bias <- -10.0 ;
 			}else{
 				// right_side_driving <- true ;
-				acc_bias <- 10.0 ;
+				acc_bias <- 1.0 ;
 			}
 		}
 	}
