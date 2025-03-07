@@ -23,7 +23,7 @@ global {
 	float t_ang_toll <- 10.0 ;
 	int min_timer <- 15 ;
 	
-	bool user_switch <- false ;
+	bool user_switch <- true ;
 
 	graph the_graph ;
 	init {
@@ -172,6 +172,7 @@ species vehicle skills: [driving] {
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
 		right_side_driving <- true ;
+		acc_bias <- 10.0 ;
 		if (n > 2){
 			if (road(current_road).oneway != "yes"){
 				i_in <- road_node(current_target).ordered_road_list index_of road(road(current_road).linked_road) ;
@@ -187,9 +188,11 @@ species vehicle skills: [driving] {
 			if (left_turn and current_road != nil)
 			{
 //				current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
-				right_side_driving <- false ;
+				// right_side_driving <- false ;
+				acc_bias <- -10.0 ;
 			}else{
-				right_side_driving <- true ;
+				// right_side_driving <- true ;
+				acc_bias <- 10.0 ;
 			}
 		}
 	}
