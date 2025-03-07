@@ -20,11 +20,12 @@ global {
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
 	bool intelligent_g<-false;
+	float t_ang_toll <- 10.0 ;
 	graph the_graph ;
 	init {
 		create building from: shape_file_buildings ;
 		create road from: shape_file_roads with:[
-			num_lanes::max(1, int(read("lanes"))),
+			num_lanes::max(2, int(read("lanes"))),
 			maxspeed::max(30.0 + rnd(5), (read("maxspeed_t")="urban:it")? 30.0+ rnd(5) : 50.0+rnd(5)),
 			oneway::string(read("oneway"))]
 			{
@@ -86,12 +87,35 @@ global {
 				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
 				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
 				
-				
-				loop j from:0 to:length(i.roads_in)-1 step:2{
-					add i.roads_in[j] to: i.roads_in_even;
-				}
-				loop j from:1 to:length(i.roads_in)-1 step:2{
-					add i.roads_in[j] to: i.roads_in_odd;
+				if (length(i.roads_in) = 3) {
+					float angle <- atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) - atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 1
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) - atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 1 e 2
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) - atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 2
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_odd ;
+					}
+				}else{
+					loop j from:0 to:length(i.roads_in)-1 step:2{
+						add i.roads_in[j] to: i.roads_in_even;
+					}
+					loop j from:1 to:length(i.roads_in)-1 step:2{
+						add i.roads_in[j] to: i.roads_in_odd;
+					}
 				}
 				
 				add i.roads_in_even to: i.stop ;
@@ -251,7 +275,8 @@ experiment ToyModel type: gui {
 	parameter "Vehicle dimension:" var: dimension ;
 	parameter "Number of vehicles:" var: nb_vehicles ;
 	parameter "Maximum speed:" var: v_maxspeed ;
-	parameter "Intelligent traffic lights:" var:intelligent_g;
+	parameter "Intelligent traffic lights:" var:intelligent_g ;
+	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 		
 	output {
 		display city_display type:2d {
