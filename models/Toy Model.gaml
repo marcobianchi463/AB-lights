@@ -19,8 +19,9 @@ global {
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
-	bool intelligent_g<-false;
+	bool intelligent_g <- true ;
 	float t_ang_toll <- 10.0 ;
+	int min_timer <- 15 ;
 	graph the_graph ;
 	init {
 		create building from: shape_file_buildings ;
@@ -201,22 +202,25 @@ species road_node skills: [intersection_skill] {
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
+	int count_odd<-0;
+	int count_even<-0;
+	int tolerance <-0;
+//	int min_timer <-15;
 	
 
 	
 	reflex classic_update_state when: is_traffic_light {
 		
 		if intelligent_g{
-			int count_odd<-0;
-			int count_even<-0;
-			int tolerance <-0;
-			int min_timer <-15;
+
 			timer <-timer+1;
 			loop k over: roads_in_even{
-				count_even+<- count(road(k).all_agents,true);
+				// count_even+<- count(road(k).all_agents,true);
+				count_even +<- length(road(k).all_agents);
 			}
 			loop l over: roads_in_odd{
-				count_odd+<- count(road(l).all_agents,true);
+				// count_odd+<- count(road(l).all_agents,true);
+				count_odd +<- length(road(l).all_agents);
 			}
 			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer{
 				timer <- 0 ;
@@ -277,6 +281,7 @@ experiment ToyModel type: gui {
 	parameter "Maximum speed:" var: v_maxspeed ;
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
+	parameter "Minimum timer for traffic light:" var: min_timer ;
 		
 	output {
 		display city_display type:2d {
