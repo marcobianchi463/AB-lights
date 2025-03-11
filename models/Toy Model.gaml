@@ -40,6 +40,7 @@ global {
 		                    shape <- polyline(reverse(myself.shape.points)) ;
 		                    color <- #green;
 		                    maxspeed <- myself.maxspeed ;
+							length <- myself.length ;
 		                    linked_road <- myself ;
 		                    myself.linked_road <- self ;
 						}					
@@ -224,6 +225,12 @@ species road skills: [road_skill] {
 	aspect base {
 		draw shape color: color ;
 	}
+	float length <- 0.0 ;
+	init {
+		loop i over: segment_lengths {
+			length <- length+ float(i) ;
+		}
+	}
 }
 
 // specie road_node con intersection_skill
@@ -239,11 +246,11 @@ species road_node skills: [intersection_skill] {
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
-	int count_odd<-0;
-	int count_even<-0;
+	float count_odd <- 0.0 ;
+	float count_even <- 0.0 ;
 	int tolerance <-0;
-	int min_timer <- int( 15 / step ) ;
-	
+	int min_timer <- int( 30 / step ) ;
+	int max_timer <- int( 150 / step ) ;
 
 	
 	reflex classic_update_state when: is_traffic_light {
@@ -251,22 +258,24 @@ species road_node skills: [intersection_skill] {
 		if intelligent_g{
 
 			timer <-timer+1;
-			count_even <- 0;
-			count_odd <- 0;
+			count_even <- 0.0 ;
+			count_odd <- 0.0 ;
 			loop k over: roads_in_even{
 				// count_even+<- count(road(k).all_agents,true);
-				count_even <- count_even + length(road(k).all_agents);
+				loop l over: road(k).segment_lengths {
+				}
+				count_even <- count_even + float ( length ( road(k).all_agents ) / ( road(k).length ) ) ;
 			}
 			loop l over: roads_in_odd{
 				// count_odd+<- count(road(l).all_agents,true);
-				count_odd <- count_odd + length(road(l).all_agents);
+				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
 			}
-			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer{
+			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer or timer >= max_timer{
 				timer <- 0 ;
 				color <- #green ;
 				do switch_state ;
 			}
-			if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer{
+			if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer or timer >= max_timer{
 				timer <- 0 ;
 				color <- #red ;
 				do switch_state ;	
