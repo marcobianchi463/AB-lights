@@ -21,7 +21,7 @@ global {
 	int v_maxspeed <- 150 ;
 	bool intelligent_g <- true ;
 	float t_ang_toll <- 10.0 ;
-	int min_timer <- 15 ;
+	// int min_timer <- 15 ;
 	
 	bool user_switch <- true ;
 
@@ -232,9 +232,9 @@ species road_node skills: [intersection_skill] {
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
 	int switch_time <- 20 + rnd(20);
-	int green_time <- int(switch_time #s) ;
-	int red_time <- int(switch_time #s) ;
-	bool road_even_ok <- true ;	//	quando true è verde per le strade con indice pari
+	int green_time <- int(switch_time / step #s) ;
+	int red_time <- int(switch_time / step #s) ;
+	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #green ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
@@ -242,7 +242,7 @@ species road_node skills: [intersection_skill] {
 	int count_odd<-0;
 	int count_even<-0;
 	int tolerance <-0;
-//	int min_timer <-15;
+	int min_timer <- int( 15 / step ) ;
 	
 
 	
@@ -251,19 +251,22 @@ species road_node skills: [intersection_skill] {
 		if intelligent_g{
 
 			timer <-timer+1;
+			count_even <- 0;
+			count_odd <- 0;
 			loop k over: roads_in_even{
 				// count_even+<- count(road(k).all_agents,true);
-				count_even +<- length(road(k).all_agents);
+				count_even <- count_even + length(road(k).all_agents);
 			}
 			loop l over: roads_in_odd{
 				// count_odd+<- count(road(l).all_agents,true);
-				count_odd +<- length(road(l).all_agents);
+				count_odd <- count_odd + length(road(l).all_agents);
 			}
 			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer{
 				timer <- 0 ;
 				color <- #green ;
 				do switch_state ;
-			}else if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer{
+			}
+			if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer{
 				timer <- 0 ;
 				color <- #red ;
 				do switch_state ;	
@@ -318,7 +321,7 @@ experiment ToyModel type: gui {
 	parameter "Maximum speed:" var: v_maxspeed ;
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
-	parameter "Minimum timer for traffic light:" var: min_timer ;
+//	parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: user_switch ;
 		
 	output {
