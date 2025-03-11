@@ -10,7 +10,7 @@ model ToyModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/split_road.shp") ;
+	file shape_file_roads <- file("../includes/qgis/split_road_clean.shp") ;
 	file shape_file_nodes <- file("../includes/qgis/junction.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
@@ -55,11 +55,11 @@ global {
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
 		}
-		
+		 
 		// INIZIALIZZAZIONE SEMAFORI
 		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
 		int rndnum <- rnd(100) ;
-		loop i over: road_node {
+		loop i over: road_node{
 			write i.index ;
 			write i.name ;
 			
