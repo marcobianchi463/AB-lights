@@ -180,11 +180,7 @@ species vehicle skills: [driving] {
 				i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
 			}
 			i_out <- road_node(current_target).ordered_road_list index_of road(next_road) ;
-			if (i_in < i_out){
-				left_turn <- i_out-i_in>min(2,n/2) ? true : false ;
-			}else{
-				left_turn <- n-(i_in-i_out)>min(2,n/2) ? true : false ;
-			}
+			left_turn <- mod(i_out-i_in+n,n) > min(2,n/2) ? true : false ;
 			if (left_turn and current_road != nil)
 			{
 //				current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
