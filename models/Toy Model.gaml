@@ -22,6 +22,9 @@ global {
 	bool intelligent_g <- true ;
 	float t_ang_toll <- 10.0 ;
 	int min_timer <- 15 ;
+	
+	bool user_switch <- true ;
+
 	graph the_graph ;
 	init {
 		create building from: shape_file_buildings ;
@@ -139,6 +142,13 @@ species vehicle skills: [driving] {
 		proba_lane_change_down <- 0.2;
 		
 	}
+
+	bool left_turn <- false;
+	int i_in;
+	int i_out;
+	int n;
+	
+	road road_now ;
 	
 	reflex time_to_go when: final_target = nil {
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
@@ -153,9 +163,36 @@ species vehicle skills: [driving] {
 		//if dot_product({cos(heading), sin(heading)},{0,0}){
 		//	//imposta nelle corsie utilizzabili quella con indice maggiore(più interna)
 		//	allowed_lanes <- [road(current_road).num_lanes-1];
-		//}	
+		//}
+		road_now <- road(current_road) ;
 		do drive ;
 	}
+	
+	reflex left_lane when: user_switch and road_now != current_road and final_target != nil{
+		n <- length(road_node(current_target).ordered_road_list);
+		left_turn <- false ;
+		right_side_driving <- true ;
+		acc_bias <- 1.0 ;
+		if (n > 2){
+			if (road(current_road).oneway != "yes"){
+				i_in <- road_node(current_target).ordered_road_list index_of road(road(current_road).linked_road) ;
+			}else{
+				i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
+			}
+			i_out <- road_node(current_target).ordered_road_list index_of road(next_road) ;
+			left_turn <- mod(i_out-i_in+n,n) > min(2,n/2) ? true : false ;
+			if (left_turn and current_road != nil)
+			{
+//				current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
+				// right_side_driving <- false ;
+				acc_bias <- -10.0 ;
+			}else{
+				// right_side_driving <- true ;
+				acc_bias <- 1.0 ;
+			}
+		}
+	}
+
 	aspect default {
 	draw circle(dimension) color: color ;
 	}
@@ -282,6 +319,7 @@ experiment ToyModel type: gui {
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 	parameter "Minimum timer for traffic light:" var: min_timer ;
+	parameter "User switch:" var: user_switch ;
 		
 	output {
 		display city_display type:2d {
