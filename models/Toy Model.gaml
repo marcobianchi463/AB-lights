@@ -155,10 +155,15 @@ species vehicle skills: [driving] {
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
-		if (flip(respawn_prob)){
-			location <- one_of(building).location ;
+		if (length(vehicle) < (1.0 - cos(360 * (current_date.hour*3600 + current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
+			create vehicle number: 2 {
+				location <- one_of(building).location ;
+				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
+				max_speed <- v_maxspeed #km / #h;
+				vehicle_length <- 3.0 #m ;
+			}
 		}
-		current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
+		do die ;
 	}
 	reflex move when: final_target != nil {
 		//if dot_product({cos(heading), sin(heading)},{0,0}){
@@ -324,9 +329,9 @@ experiment ToyModel type: gui {
 	parameter "Shapefile for the buildings:" var: shape_file_buildings category: "GIS" ;
 	parameter "Shapefile for the roads:" var: shape_file_roads category: "GIS" ;
 	parameter "Shapefile for the bounds:" var: shape_file_nodes category: "GIS" ;
-	parameter "Probability of respawn:" var: respawn_prob category: "BOH" ;
+	// parameter "Probability of respawn:" var: respawn_prob category: "BOH" ;
 	parameter "Vehicle dimension:" var: dimension ;
-	parameter "Number of vehicles:" var: nb_vehicles ;
+	parameter "Mean number of vehicles:" var: nb_vehicles ;
 	parameter "Maximum speed:" var: v_maxspeed ;
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
@@ -340,5 +345,6 @@ experiment ToyModel type: gui {
 			species vehicle aspect: rect ;
 			species road_node aspect:default ;
 		}
+		monitor "Number of vehicles" value: length(vehicle) ;
 	}
 }
