@@ -10,7 +10,7 @@ model ToyModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/split_road.shp") ;
+	file shape_file_roads <- file("../includes/qgis/split_road_clean.shp") ;
 	file shape_file_nodes <- file("../includes/qgis/junction.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
@@ -21,7 +21,7 @@ global {
 	int v_maxspeed <- 150 ;
 	bool intelligent_g <- true ;
 	float t_ang_toll <- 10.0 ;
-	int min_timer <- 15 ;
+	// int min_timer <- 15 ;
 	
 	bool user_switch <- true ;
 
@@ -40,6 +40,7 @@ global {
 		                    shape <- polyline(reverse(myself.shape.points)) ;
 		                    color <- #green;
 		                    maxspeed <- myself.maxspeed ;
+							length <- myself.length ;
 		                    linked_road <- myself ;
 		                    myself.linked_road <- self ;
 						}					
@@ -55,11 +56,11 @@ global {
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
 		}
-		
+		 
 		// INIZIALIZZAZIONE SEMAFORI
 		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
 		int rndnum <- rnd(100) ;
-		loop i over: road_node {
+		loop i over: road_node{
 			write i.index ;
 			write i.name ;
 			
@@ -224,6 +225,12 @@ species road skills: [road_skill] {
 	aspect base {
 		draw shape color: color ;
 	}
+	float length <- 0.0 ;
+	init {
+		loop i over: segment_lengths {
+			length <- length+ float(i) ;
+		}
+	}
 }
 
 // specie road_node con intersection_skill
@@ -232,18 +239,18 @@ species road_node skills: [intersection_skill] {
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
 	int switch_time <- 20 + rnd(20);
-	int green_time <- int(switch_time #s) ;
-	int red_time <- int(switch_time #s) ;
-	bool road_even_ok <- true ;	//	quando true è verde per le strade con indice pari
+	int green_time <- int(switch_time / step #s) ;
+	int red_time <- int(switch_time / step #s) ;
+	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #green ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
-	int count_odd<-0;
-	int count_even<-0;
+	float count_odd <- 0.0 ;
+	float count_even <- 0.0 ;
 	int tolerance <-0;
-//	int min_timer <-15;
-	
+	int min_timer <- int( 30 / step ) ;
+	int max_timer <- int( 150 / step ) ;
 
 	
 	reflex classic_update_state when: is_traffic_light {
@@ -251,19 +258,24 @@ species road_node skills: [intersection_skill] {
 		if intelligent_g{
 
 			timer <-timer+1;
+			count_even <- 0.0 ;
+			count_odd <- 0.0 ;
 			loop k over: roads_in_even{
 				// count_even+<- count(road(k).all_agents,true);
-				count_even +<- length(road(k).all_agents);
+				loop l over: road(k).segment_lengths {
+				}
+				count_even <- count_even + float ( length ( road(k).all_agents ) / ( road(k).length ) ) ;
 			}
 			loop l over: roads_in_odd{
 				// count_odd+<- count(road(l).all_agents,true);
-				count_odd +<- length(road(l).all_agents);
+				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
 			}
-			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer{
+			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer or timer >= max_timer{
 				timer <- 0 ;
 				color <- #green ;
 				do switch_state ;
-			}else if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer{
+			}
+			if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer or timer >= max_timer{
 				timer <- 0 ;
 				color <- #red ;
 				do switch_state ;	
@@ -318,7 +330,7 @@ experiment ToyModel type: gui {
 	parameter "Maximum speed:" var: v_maxspeed ;
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
-	parameter "Minimum timer for traffic light:" var: min_timer ;
+//	parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: user_switch ;
 		
 	output {
