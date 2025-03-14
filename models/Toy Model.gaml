@@ -22,8 +22,9 @@ global {
 	bool intelligent_g <- true ;
 	float t_ang_toll <- 10.0 ;
 	// int min_timer <- 15 ;
+	int n_trips <- 0 ;
 	
-	bool user_switch <- true ;
+	bool left_lane_choice <- false ;
 
 	graph the_graph ;
 	init {
@@ -163,6 +164,7 @@ species vehicle skills: [driving] {
 				vehicle_length <- 3.0 #m ;
 			}
 		}
+		n_trips <- n_trips + 1 ;
 		do die ;
 	}
 	reflex move when: final_target != nil {
@@ -174,7 +176,7 @@ species vehicle skills: [driving] {
 		do drive ;
 	}
 	
-	reflex left_lane when: user_switch and road_now != current_road and final_target != nil{
+	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil{
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
 		right_side_driving <- true ;
@@ -189,7 +191,7 @@ species vehicle skills: [driving] {
 			left_turn <- mod(i_out-i_in+n,n) > min(2,n/2) ? true : false ;
 			if (left_turn and current_road != nil)
 			{
-//				current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
+				// current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
 				// right_side_driving <- false ;
 				acc_bias <- -10.0 ;
 			}else{
@@ -336,7 +338,7 @@ experiment ToyModel type: gui {
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 //	parameter "Minimum timer for traffic light:" var: min_timer ;
-	parameter "User switch:" var: user_switch ;
+	parameter "User switch:" var: left_lane_choice ;
 		
 	output {
 		display city_display type:2d {
@@ -345,6 +347,28 @@ experiment ToyModel type: gui {
 			species vehicle aspect: rect ;
 			species road_node aspect:default ;
 		}
-		monitor "Number of vehicles" value: length(vehicle) ;
+		monitor "Number of trips" value: n_trips ;
+		display "Symulation informations" refresh: every(60#cycles) type: 2d {
+			chart "Number of vehicles" type: series size: {1,0.5} position: {0,0} {
+				data "number of vehicles" value: length(vehicle) color: #red ;
+			}
+			chart "Successful trips" type: series size: {1,0.5} position: {0,0.5} {
+				data "number of successful trips" value: n_trips color: #green ;
+			}
+		}
+	}
+}
+
+experiment ToyBatch type: batch until: (cycle = 7200) keep_seed: true {
+	parameter "User Switch" var: left_lane_choice among: [true, false] ;
+	parameter "Intelligent Traffic Lights" var: intelligent_g among: [true, false] ;
+	method exploration ;
+	bool delete_txt <- delete_file("../results/trips.txt") ;
+	bool delete_csv <- delete_file("../results/trips.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.intelligent_g,i.left_lane_choice,i.n_trips] format: "csv" to: "../results/trips.csv"
+			rewrite: false ;
+		}
 	}
 }

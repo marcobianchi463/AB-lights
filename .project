@@ -15,16 +15,4 @@
 		<nature>org.eclipse.xtext.ui.shared.xtextNature</nature>
 		<nature>msi.gama.application.gamaNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>external/prova3.shp</name>
-			<type>1</type>
-			<location>C:/Users/marco/QGIS/prova3.shp</location>
-		</link>
-		<link>
-			<name>external/road.shp</name>
-			<type>1</type>
-			<location>C:/Users/marco/QGIS/road.shp</location>
-		</link>
-	</linkedResources>
 </projectDescription>
