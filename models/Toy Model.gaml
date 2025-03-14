@@ -26,6 +26,10 @@ global {
 	
 	bool left_lane_choice <- false ;
 
+	// variabili per la gestione dei semafori
+	int min_timer <- int( 30 / step ) ;
+	int max_timer <- int( 150 / step ) ;
+
 	graph the_graph ;
 	init {
 		create building from: shape_file_buildings ;
@@ -156,7 +160,8 @@ species vehicle skills: [driving] {
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
-		if (length(vehicle) < (1.0 - cos(360 * (current_date.hour*3600 + current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
+		if (length(vehicle) < (1.0 - cos(360 * (current_date.hour*3600 +
+		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
 			create vehicle number: 2 {
 				location <- one_of(building).location ;
 				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
@@ -183,7 +188,8 @@ species vehicle skills: [driving] {
 		acc_bias <- 1.0 ;
 		if (n > 2){
 			if (road(current_road).oneway != "yes"){
-				i_in <- road_node(current_target).ordered_road_list index_of road(road(current_road).linked_road) ;
+				i_in <- road_node(current_target).ordered_road_list
+				index_of road(road(current_road).linked_road) ;
 			}else{
 				i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
 			}
@@ -209,7 +215,8 @@ species vehicle skills: [driving] {
 	aspect rect {
 		if (current_road != nil) {
 			point loc <- eval_loc() ;
-			draw rectangle(vehicle_length*dimension, dimension #m) at: loc color: color rotate: heading border: #black;
+			draw rectangle(vehicle_length*dimension, dimension #m)
+			at: loc color: color rotate: heading border: #black;
 			draw triangle(1 #m) at: loc color: #white rotate: heading + 90 ;
 		}
 	}
@@ -256,8 +263,6 @@ species road_node skills: [intersection_skill] {
 	float count_odd <- 0.0 ;
 	float count_even <- 0.0 ;
 	int tolerance <-0;
-	int min_timer <- int( 30 / step ) ;
-	int max_timer <- int( 150 / step ) ;
 
 	
 	reflex classic_update_state when: is_traffic_light {
@@ -359,15 +364,39 @@ experiment ToyModel type: gui {
 	}
 }
 
-experiment ToyBatch type: batch until: (cycle = 7200) keep_seed: true {
-	parameter "User Switch" var: left_lane_choice among: [true, false] ;
+experiment boolBatch type: batch until: (cycle = 7200) keep_seed: true {
+	parameter "Left Lane Choice" var: left_lane_choice among: [true, false] ;
 	parameter "Intelligent Traffic Lights" var: intelligent_g among: [true, false] ;
 	method exploration ;
-	bool delete_txt <- delete_file("../results/trips.txt") ;
 	bool delete_csv <- delete_file("../results/trips.csv") ;
 	reflex save_trips {
 		loop i over: simulations {
 			save [i.intelligent_g,i.left_lane_choice,i.n_trips] format: "csv" to: "../results/trips.csv"
+			rewrite: false ;
+		}
+	}
+}
+
+experiment min_light type: batch until: (cycle = 7200) keep_seed: true {
+	parameter "Minimum light time" var: min_timer min: 10 max: 45 step: 5 ;
+	method exploration ;
+	bool delete_csv <- delete_file("../results/min_light.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.min_timer,i.n_trips] format: "csv" to: "../results/min_light.csv"
+			rewrite: false ;
+		}
+	}
+}
+
+experiment min_max_light type: batch until: (cycle = 7200) keep_seed: true {
+	parameter "Minimum light time" var: min_timer min: 15 max: 45 step: 10 ;
+	parameter "Maximum light time" var: max_timer min: 60 max: 180 step: 40 ;
+	method exploration ;
+	bool delete_csv <- delete_file("../results/min_max_light.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.min_timer,i.max_timer,i.n_trips] format: "csv" to: "../results/min_max_light.csv"
 			rewrite: false ;
 		}
 	}
