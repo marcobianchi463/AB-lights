@@ -133,6 +133,9 @@ global {
 			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
 		}
 	}
+	
+	
+	
 }
 
 // Veicoli definiti con skill advanced_driving
@@ -150,7 +153,9 @@ species vehicle skills: [driving] {
 	}
 
 	bool left_turn <- false;
+	// Strada da cui arriva la macchina
 	int i_in;
+	// Strada dove vuole andare la macchina
 	int i_out;
 	int n;
 	
@@ -231,6 +236,20 @@ species vehicle skills: [driving] {
 		}
 	}
 
+}
+
+species bus parent:vehicle{
+	rgb color <- #yellow ;
+	
+	float offset_distance<-0.3;
+	init{
+		vehicle_length <- 8.5 #m ;
+		max_speed <- 50 #km / #h ;
+		proba_respect_priorities <- 1.0;
+		proba_lane_change_up <-0.01;
+		proba_lane_change_down <- 0.01;
+		
+	}
 }
 
 species road skills: [road_skill] {
