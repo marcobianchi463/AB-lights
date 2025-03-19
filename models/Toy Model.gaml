@@ -15,7 +15,11 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1 #second ;
-	int nb_vehicles <- 240 ;
+	int nb_vehicles <- 0 ;
+	int nb_bus_lines <- 3 ;
+	int nb_bus <- 3 ;
+	list<road_node> bus_targets <- [] ;
+	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
@@ -56,10 +60,20 @@ global {
 		
 		the_graph <- as_driving_graph (road, road_node) ;
 		
-		create vehicle number: nb_vehicles {
+		create car number: nb_vehicles {
 			location <- one_of(road_node).location ;
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
+		}
+		create bus number: nb_bus_lines {
+			current_source <- one_of(road_node) ;
+			location <- current_source.location ;
+			current_destination <- one_of(road_node) ;
+			max_speed <- 50 #km / #h;
+			vehicle_length <- 8.0 #m ;
+			add current_source to: bus_sources ;
+			add current_destination to: bus_targets ;
+			current_path <- compute_path (graph: the_graph, target: current_destination) ;
 		}
 		 
 		// INIZIALIZZAZIONE SEMAFORI
@@ -161,22 +175,6 @@ species vehicle skills: [driving] {
 	
 	road road_now ;
 	
-	reflex time_to_go when: final_target = nil {
-		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
-		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
-		// per mappe grandi è raro che succeda, ma non in mappe piccole 
-		if (length(vehicle) < (1.0 - cos(360 * (current_date.hour*3600 +
-		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
-			create vehicle number: 2 {
-				location <- one_of(building).location ;
-				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
-				max_speed <- v_maxspeed #km / #h;
-				vehicle_length <- 3.0 #m ;
-			}
-		}
-		n_trips <- n_trips + 1 ;
-		do die ;
-	}
 	reflex move when: final_target != nil {
 		//if dot_product({cos(heading), sin(heading)},{0,0}){
 		//	//imposta nelle corsie utilizzabili quella con indice maggiore(più interna)
@@ -237,9 +235,40 @@ species vehicle skills: [driving] {
 	}
 
 }
+species car parent:vehicle{
+	rgb color <- rnd_color(255) ;
+	
+	float offset_distance<-0.2;
+	init{
+		vehicle_length <- 3.8 #m ;
+		max_speed <- 150 #km / #h ;
+		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_lane_change_up <- 0.2;
+		proba_lane_change_down <- 0.2;
+		
+	}
 
+	reflex time_to_go when: final_target = nil {
+		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
+		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
+		// per mappe grandi è raro che succeda, ma non in mappe piccole 
+		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
+		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
+			create car number: 2 {
+				location <- one_of(building).location ;
+				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
+				max_speed <- v_maxspeed #km / #h;
+				vehicle_length <- 3.0 #m ;
+			}
+		}
+		n_trips <- n_trips + 1 ;
+		do die ;
+	}
+}
 species bus parent:vehicle{
 	rgb color <- #yellow ;
+	road_node current_source ;
+	road_node current_destination ;
 	
 	float offset_distance<-0.3;
 	init{
@@ -247,8 +276,35 @@ species bus parent:vehicle{
 		max_speed <- 50 #km / #h ;
 		proba_respect_priorities <- 1.0;
 		proba_lane_change_up <-0.01;
-		proba_lane_change_down <- 0.01;
-		
+		proba_lane_change_down <- 0.01;	
+	}
+	
+	reflex time_to_go when: final_target = nil {
+		if (length(bus) < (1.0 - cos(360 * (current_date.hour*3600 +
+		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_bus){
+			// creo un bus che percorre il tragitto inverso
+			create bus {
+				location <- myself.location ;
+				// aggiorno le variabili di partenza e arrivo del bus
+				current_source <- myself.current_destination ;
+				current_destination <- myself.current_source ;
+				current_path <- compute_path (graph: the_graph, target: current_destination) ;
+				max_speed <- 50 #km / #h;
+				vehicle_length <- 8.5 #m ;
+			}
+			// creo un bus che percorre lo stesso tragitto
+			create bus {
+				location <- myself.current_source.location ;
+				// aggiorno le variabili di partenza e arrivo del bus
+				current_source <- myself.current_source ;
+				current_destination <- myself.current_destination ;
+				current_path <- compute_path (graph: the_graph, target: current_destination) ;
+				max_speed <- 50 #km / #h;
+				vehicle_length <- 8.5 #m ;
+			}
+		}
+		n_trips <- n_trips + 1 ;
+		do die ;
 	}
 }
 
@@ -368,13 +424,15 @@ experiment ToyModel type: gui {
 		display city_display type:2d {
 			species building aspect: default ;
 			species road aspect: base ;
-			species vehicle aspect: rect ;
+			species car aspect: rect ;
+			species bus aspect: rect ;
 			species road_node aspect:default ;
 		}
 		monitor "Number of trips" value: n_trips ;
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
 			chart "Number of vehicles" type: series size: {1,0.5} position: {0,0} {
-				data "number of vehicles" value: length(vehicle) color: #red ;
+				data "number of cars" value: length(car) color: #red ;
+				data "number of buses" value: length(bus) color: #blue ;
 			}
 			chart "Successful trips" type: series size: {1,0.5} position: {0,0.5} {
 				data "number of successful trips" value: n_trips color: #green ;
