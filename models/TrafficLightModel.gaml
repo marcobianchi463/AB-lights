@@ -10,8 +10,8 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/split_road_clean.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/junction_clean.shp") ;
+	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1 #second ;
