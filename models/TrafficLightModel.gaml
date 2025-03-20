@@ -74,7 +74,7 @@ global {
 			vehicle_length <- 8.0 #m ;
 			current_source <- one_of(road_node) ;
 			current_destination <- one_of(road_node) ;
-			line_color <- rnd_color(255);
+			line_color <- one_of([#yellow, #red, #orange]);
 			loop while: the_graph path_between (current_source, current_destination) = nil 
 			or the_graph path_between (current_destination, current_source) = nil {
 				current_source <- one_of(road_node) ;
@@ -85,12 +85,12 @@ global {
 			add current_destination to: bus_destinations ;
 			// Computed path of buses are painted yellow shortest path in orange
 			current_path <- compute_path (graph: the_graph, target: current_destination) ;
-			loop i over: list(current_path.edges) {
+			/*loop i over: list(current_path.edges) {
 				road(i).color <- line_color ;
 			}
 			/*loop i over: list((the_graph path_between (current_destination, current_source)).edges) {
 				road(i).color <- #orange ;
-			}*/
+			} */
 		}
 		 
 		// INIZIALIZZAZIONE SEMAFORI
@@ -166,7 +166,7 @@ global {
 	}
 	reflex update_outputs {
 		remove from: trips index: 0 ;
-		add (n_trips + trips at (length(trips) - 2)) to: trips ;
+		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 	}
 }
@@ -287,7 +287,7 @@ species bus parent:vehicle{
 	rgb color <- #yellow ;
 	road_node current_source ;
 	road_node current_destination ;
-	rgb line_color <- rnd_color(255);
+	rgb line_color;
 
 	
 	float offset_distance<-0.3;
