@@ -88,9 +88,9 @@ global {
 			loop i over: list(current_path.edges) {
 				road(i).color <- line_color ;
 			}
-			/*loop i over: list((the_graph path_between (current_destination, current_source)).edges) {
+			loop i over: list((the_graph path_between (current_destination, current_source)).edges) {
 				road(i).color <- #orange ;
-			}*/
+			}
 		}
 		 
 		// INIZIALIZZAZIONE SEMAFORI
@@ -166,7 +166,7 @@ global {
 	}
 	reflex update_outputs {
 		remove from: trips index: 0 ;
-		add (n_trips + trips at (length(trips) - 2)) to: trips ;
+		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 	}
 }
@@ -287,7 +287,7 @@ species bus parent:vehicle{
 	rgb color <- #yellow ;
 	road_node current_source ;
 	road_node current_destination ;
-	rgb line_color <- rnd_color(255);
+	rgb line_color;
 
 	
 	float offset_distance<-0.3;
@@ -458,15 +458,20 @@ experiment TrafficLightModel type: gui {
 		}
 		monitor "Number of trips" value: n_trips ;
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
-			chart "Number of vehicles" type: series size: {1,0.5} position: {0,0} {
+			chart "Number of vehicles" type: series size: {0.5,0.5} position: {0,0} {
 				data "number of cars" value: length(car) color: #red ;
 				data "number of buses" value: length(bus) color: #blue ;
 			}
-			chart "Successful trips" type: series size: {1,0.5} position: {0,0.5} {
+			chart "Successful trips" type: series size: {0.5,0.5} position: {0,0.5} {
 				data "number of successful trips" value: trips at (length(trips) - 1) color: #green ;
 				data "ten second average variation" value: trips at (length(trips) - 1) - trips at 0
 				color: #purple use_second_y_axis: true ;
 			}
+         	chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0.5} {
+                 data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
+                 data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
+	     }
+         
 		}
 	}
 }
