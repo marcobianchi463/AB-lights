@@ -471,6 +471,10 @@ experiment TrafficLightModel type: gui {
                  data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
                  data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
 	     }
+	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} {
+                 data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;
+                 
+	     }
          
 		}
 	}
