@@ -1,11 +1,11 @@
 /**
-* Name: ToyModel
+* Name: TrafficLightModel
 * Based on the internal skeleton template. 
 * Author: marco
 * Tags: 
 */
 
-model ToyModel
+model TrafficLightModel
 
 global {
 	/** Insert the global definitions, variables and actions here */
