@@ -51,7 +51,7 @@ global {
 						create road {
 							num_lanes <- myself.num_lanes ;
 		                    shape <- polyline(reverse(myself.shape.points)) ;
-		                    color <- #green;
+		                    
 		                    maxspeed <- myself.maxspeed ;
 							length <- myself.length ;
 		                    linked_road <- myself ;
@@ -74,6 +74,7 @@ global {
 			vehicle_length <- 8.0 #m ;
 			current_source <- one_of(road_node) ;
 			current_destination <- one_of(road_node) ;
+			line_color <- rnd_color(255);
 			loop while: the_graph path_between (current_source, current_destination) = nil 
 			or the_graph path_between (current_destination, current_source) = nil {
 				current_source <- one_of(road_node) ;
@@ -82,13 +83,14 @@ global {
 			location <- current_source.location ;
 			add current_source to: bus_sources ;
 			add current_destination to: bus_destinations ;
+			// Computed path of buses are painted yellow shortest path in orange
 			current_path <- compute_path (graph: the_graph, target: current_destination) ;
 			loop i over: list(current_path.edges) {
-				road(i).color <- #yellow ;
+				road(i).color <- line_color ;
 			}
-			loop i over: list((the_graph path_between (current_destination, current_source)).edges) {
+			/*loop i over: list((the_graph path_between (current_destination, current_source)).edges) {
 				road(i).color <- #orange ;
-			}
+			}*/
 		}
 		 
 		// INIZIALIZZAZIONE SEMAFORI
@@ -193,10 +195,7 @@ species vehicle skills: [driving] {
 	road road_now ;
 	
 	reflex move when: final_target != nil {
-		//if dot_product({cos(heading), sin(heading)},{0,0}){
-		//	//imposta nelle corsie utilizzabili quella con indice maggiore(più interna)
-		//	allowed_lanes <- [road(current_road).num_lanes-1];
-		//}
+		
 		road_now <- road(current_road) ;
 		do drive ;
 	}
@@ -227,9 +226,9 @@ species vehicle skills: [driving] {
 		}
 	}
 
-	aspect default {
+	/*aspect default {
 	draw circle(dimension) color: color ;
-	}
+	}*/
 	
 	//aspetto rettangolare con freccia direzionale
 	aspect rect {
@@ -288,6 +287,8 @@ species bus parent:vehicle{
 	rgb color <- #yellow ;
 	road_node current_source ;
 	road_node current_destination ;
+	rgb line_color <- rnd_color(255);
+
 	
 	float offset_distance<-0.3;
 	init{
@@ -305,10 +306,14 @@ species bus parent:vehicle{
 			create bus {
 				location <- myself.location ;
 				// aggiorno le variabili di partenza e arrivo del bus
-				int i <- one_of([0,1,2]) ;
+				int i <- int(rnd(0,nb_bus_lines-1)) ;
 				current_source <- bus_destinations[i] ;
-				current_destination <- bus_sources[i] ; // garantisco che partenza e destinazione siano correttamente accoppiate
+				current_destination <- bus_sources[i] ; 
+				// garantisco che partenza e destinazione siano correttamente accoppiate
+				
 				current_path <- compute_path (graph: the_graph, target: current_destination) ;
+				
+				
 				max_speed <- 50 #km / #h;
 				vehicle_length <- 8.5 #m ;
 			}
@@ -316,7 +321,7 @@ species bus parent:vehicle{
 			create bus {
 				location <- myself.current_source.location ;
 				// aggiorno le variabili di partenza e arrivo del bus
-				int i <- one_of([0,1,2]) ;
+				int i <- int(rnd(0,nb_bus_lines-1)) ;
 				current_source <- bus_sources[i] ;
 				current_destination <- bus_destinations[i] ;
 				current_path <- compute_path (graph: the_graph, target: current_destination) ;
@@ -428,7 +433,7 @@ species building {
 	}
 }
 
-experiment ToyModel type: gui {
+experiment TrafficLightModel type: gui {
 	parameter "Shapefile for the buildings:" var: shape_file_buildings category: "GIS" ;
 	parameter "Shapefile for the roads:" var: shape_file_roads category: "GIS" ;
 	parameter "Shapefile for the bounds:" var: shape_file_nodes category: "GIS" ;
