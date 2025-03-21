@@ -15,7 +15,7 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1 #second ;
-	int nb_vehicles <- 0 ;
+	int nb_vehicles <- 500 ;
 	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 3 ;
 	list<road_node> bus_destinations <- [] ;
@@ -28,6 +28,7 @@ global {
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
+	float proba_rerouting <- 0.0001 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -254,6 +255,9 @@ species vehicle skills: [driving] {
 
 species car parent:vehicle{
 	rgb color <- rnd_color(255) ;
+	list<path> a_path_list ;
+	list<road> edge_list ;
+	list<road_node> node_list ;
 	
 	float offset_distance<-0.2;
 	init{
@@ -280,6 +284,36 @@ species car parent:vehicle{
 		}
 		n_trips <- n_trips + 1 ;
 		do die ;
+	}
+
+	reflex change_route when: flip(proba_rerouting) and speed < 0.01 and current_road != nil {
+		// // Debugging
+		// write "Current road: "+string(current_road) ;
+		// write "Next road: "+string(next_road) ;
+		// write "Current target: "+string(current_target) ;
+		// write "Final target: "+string(final_target) ;
+		// write "Current path: "+string(current_path) ;
+		a_path_list <- paths_between(the_graph, current_target::final_target,2);
+		// write "Path list: "+string(a_path_list) ;
+		if (length(a_path_list) = 2) {
+			edge_list <- list(road((a_path_list at 1).edges)) ;
+			edge_list <- list(current_road) + edge_list ;
+			// write "Lista delle strade: " + string(edge_list) ;
+			node_list <- list(road_node(collect(edge_list, each.target_node))) ;
+			node_list <- list(road(current_road).source_node) + node_list ;
+			// write "Lista dei percorsi: " + string(node_list) ;
+			current_path <- compute_path (graph: as_driving_graph(edge_list, node_list), target: final_target) ;
+			// write "Current path: "+string(current_path) ;
+			// write string(index)+" rerouted!" ;
+		}else{
+			// write "No rerouting possible" ;
+		}
+		// Sembra funzionare, il current_path viene effettivamente modificato
+		// e mi sembra che le auto cambino percorso.
+		// Si potrebbe implementare la richiesta che la strada che si vuole
+		// prendere inizialmente sia piena.
+		// Per come è implementato ora, non e detto che il nuovo percorso
+		// cambi la next_road, quindi in caso di ingorgo potrei non risolvere.
 	}
 }
 
@@ -447,6 +481,7 @@ experiment TrafficLightModel type: gui {
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: left_lane_choice ;
+	parameter "proba_rerouting" var: proba_rerouting ;
 		
 	output {
 		display city_display type:2d {
