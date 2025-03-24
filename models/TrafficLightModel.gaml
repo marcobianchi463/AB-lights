@@ -296,10 +296,10 @@ species car parent:vehicle{
 		a_path_list <- paths_between(the_graph, current_target::final_target,2);
 		// write "Path list: "+string(a_path_list) ;
 		if (length(a_path_list) = 2) {
-			edge_list <- list(road((a_path_list at 1).edges)) ;
+			edge_list <- (a_path_list at 1).edges ;
 			edge_list <- list(current_road) + edge_list ;
 			// write "Lista delle strade: " + string(edge_list) ;
-			node_list <- list(road_node(collect(edge_list, each.target_node))) ;
+			node_list <- collect(edge_list, each.target_node) ;
 			node_list <- list(road(current_road).source_node) + node_list ;
 			// write "Lista dei percorsi: " + string(node_list) ;
 			current_path <- compute_path (graph: as_driving_graph(edge_list, node_list), target: final_target) ;
