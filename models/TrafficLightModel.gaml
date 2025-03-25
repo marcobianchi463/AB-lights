@@ -286,7 +286,7 @@ species car parent:vehicle{
 		do die ;
 	}
 
-	reflex change_route when: flip(proba_rerouting) and speed < 0.01 and current_road != nil {
+	reflex change_route when: flip(10^proba_rerouting) /*and speed < 0.01*/ and current_road != nil and current_road != road_now {
 		// // Debugging
 		// write "Current road: "+string(current_road) ;
 		// write "Next road: "+string(next_road) ;
@@ -296,10 +296,10 @@ species car parent:vehicle{
 		a_path_list <- paths_between(the_graph, current_target::final_target,2);
 		// write "Path list: "+string(a_path_list) ;
 		if (length(a_path_list) = 2) {
-			edge_list <- (a_path_list at 1).edges ;
+			edge_list <- list<road>(list((a_path_list at 1).edges)) ;
 			edge_list <- list(current_road) + edge_list ;
 			// write "Lista delle strade: " + string(edge_list) ;
-			node_list <- collect(edge_list, each.target_node) ;
+			node_list <- list<road_node>(collect(edge_list, each.target_node)) ;
 			node_list <- list(road(current_road).source_node) + node_list ;
 			// write "Lista dei percorsi: " + string(node_list) ;
 			current_path <- compute_path (graph: as_driving_graph(edge_list, node_list), target: final_target) ;
@@ -548,6 +548,18 @@ experiment min_max_light type: batch until: (cycle = 7200) keep_seed: true {
 	reflex save_trips {
 		loop i over: simulations {
 			save [i.min_timer,i.max_timer,i.n_trips] format: "csv" to: "../results/min_max_light.csv"
+			rewrite: false ;
+		}
+	}
+}
+
+experiment test type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Rerouting probability" var: proba_rerouting min: -11/5 max: 0 step: 1/5 ;
+	method exploration ;
+	bool delete_csv <- delete_file("../results/test1.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [10 ^ (i.proba_rerouting) * 100, last (i.trips), 100 * mean (i.car count (each.speed<1) / (length(i.car) + 1))] format: "csv" to: "../results/test1.csv"
 			rewrite: false ;
 		}
 	}
