@@ -291,7 +291,7 @@ species car parent:vehicle{
 		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				location <- one_of(building).location ;
+				location <- one_of(road_node).location ;
 				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
 				max_speed <- v_maxspeed #km / #h;
 				vehicle_length <- 3.0 #m ;
@@ -334,7 +334,7 @@ species bus parent:vehicle skills: [fipa] {
 				current_path <- compute_path (graph: the_graph, target: current_destination) ;
 				
 				
-				max_speed <- 50 #km / #h;
+				max_speed <- 50 #km / #h ;
 				vehicle_length <- 8.5 #m ;
 			}
 			// creo un bus che percorre lo stesso tragitto
