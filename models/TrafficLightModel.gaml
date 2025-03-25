@@ -28,7 +28,7 @@ global {
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
-	float proba_rerouting <- 0.0001 ;
+	float proba_rerouting <- -5.0 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -554,7 +554,7 @@ experiment min_max_light type: batch until: (cycle = 7200) keep_seed: true {
 }
 
 experiment test type: batch until: (cycle = 6*3600) keep_seed: true {
-	parameter "Rerouting probability" var: proba_rerouting min: -11/5 max: 0 step: 1/5 ;
+	parameter "Rerouting probability" var: proba_rerouting min: -11/5 max: 0.0 step: 1/5 ;
 	method exploration ;
 	bool delete_csv <- delete_file("../results/test1.csv") ;
 	reflex save_trips {
