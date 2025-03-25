@@ -24,7 +24,7 @@ global {
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
 	bool intelligent_g <- true ;
-	float t_ang_toll <- 10.0 ;
+	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
@@ -272,7 +272,7 @@ species car parent:vehicle{
 		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				location <- one_of(building).location ;
+				location <- one_of(road_node).location ;
 				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
 				max_speed <- v_maxspeed #km / #h;
 				vehicle_length <- 3.0 #m ;
@@ -314,7 +314,7 @@ species bus parent:vehicle{
 				current_path <- compute_path (graph: the_graph, target: current_destination) ;
 				
 				
-				max_speed <- 50 #km / #h;
+				max_speed <- 50 #km / #h ;
 				vehicle_length <- 8.5 #m ;
 			}
 			// creo un bus che percorre lo stesso tragitto
@@ -468,11 +468,11 @@ experiment TrafficLightModel type: gui {
 				color: #purple use_second_y_axis: true ;
 			}
          	chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0.5} {
-                 data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
-                 data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
+				data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
+				data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
 	     }
-	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} {
-                 data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;
+	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0,100] {
+				data "Nb stopped vehicles" value: 100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;
                  
 	     }
          
