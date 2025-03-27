@@ -28,7 +28,8 @@ global {
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
-	float proba_rerouting <- -5.0 ;
+	float proba_rerouting <- 0.0 ;
+	float car_weight <- 100.0 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -63,7 +64,8 @@ global {
 			}
 		create road_node from: shape_file_nodes ;
 		
-		the_graph <- as_driving_graph (road, road_node) ;
+		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		create car number: nb_vehicles {
 			location <- one_of(road_node).location ;
@@ -169,6 +171,10 @@ global {
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
+	}
+	reflex update_graph when: car_weight > 0.0 {
+		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		the_graph <- the_graph with_weights weight_map ;
 	}
 }
 
@@ -287,33 +293,7 @@ species car parent:vehicle{
 	}
 
 	reflex change_route when: flip(10^proba_rerouting) /*and speed < 0.01*/ and current_road != nil and current_road != road_now {
-		// // Debugging
-		// write "Current road: "+string(current_road) ;
-		// write "Next road: "+string(next_road) ;
-		// write "Current target: "+string(current_target) ;
-		// write "Final target: "+string(final_target) ;
-		// write "Current path: "+string(current_path) ;
-		a_path_list <- paths_between(the_graph, current_target::final_target,2);
-		// write "Path list: "+string(a_path_list) ;
-		if (length(a_path_list) = 2) {
-			edge_list <- list<road>(list((a_path_list at 1).edges)) ;
-			edge_list <- list(current_road) + edge_list ;
-			// write "Lista delle strade: " + string(edge_list) ;
-			node_list <- list<road_node>(collect(edge_list, each.target_node)) ;
-			node_list <- list(road(current_road).source_node) + node_list ;
-			// write "Lista dei percorsi: " + string(node_list) ;
-			current_path <- compute_path (graph: as_driving_graph(edge_list, node_list), target: final_target) ;
-			// write "Current path: "+string(current_path) ;
-			// write string(index)+" rerouted!" ;
-		}else{
-			// write "No rerouting possible" ;
-		}
-		// Sembra funzionare, il current_path viene effettivamente modificato
-		// e mi sembra che le auto cambino percorso.
-		// Si potrebbe implementare la richiesta che la strada che si vuole
-		// prendere inizialmente sia piena.
-		// Per come è implementato ora, non e detto che il nuovo percorso
-		// cambi la next_road, quindi in caso di ingorgo potrei non risolvere.
+		current_path <- compute_path (graph: the_graph, target: final_target) ;
 	}
 }
 
@@ -482,6 +462,7 @@ experiment TrafficLightModel type: gui {
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: left_lane_choice ;
 	parameter "proba_rerouting" var: proba_rerouting ;
+	parameter "Weight" var: car_weight ;
 		
 	output {
 		display city_display type:2d {
@@ -561,6 +542,18 @@ experiment test type: batch until: (cycle = 6*3600) keep_seed: true {
 		loop i over: simulations {
 			save [10 ^ (i.proba_rerouting) * 100, last (i.trips), 100 * mean (i.car count (each.speed<1) / (length(i.car) + 1))] format: "csv" to: "../results/test1.csv"
 			rewrite: false ;
+		}
+	}
+}
+
+experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Car weight" var: car_weight min: 0.0 max: 3500.0 step: 100.0 ;
+	method exploration ;
+	// bool delete_csv <- delete_file("../results/car_weight.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.car_weight, last (i.trips), 100 * mean (i.car count (each.speed<1) / (length(i.car) + 1))] format: "csv"
+			to: "../results/car_weight"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
 		}
 	}
 }
