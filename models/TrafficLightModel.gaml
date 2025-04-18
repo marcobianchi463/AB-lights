@@ -15,7 +15,7 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1 #second ;
-	int nb_vehicles <- 0 ;
+	int nb_vehicles <- 500 ;
 	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 3 ;
 	list<road_node> bus_destinations <- [] ;
@@ -28,6 +28,8 @@ global {
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
+	float proba_rerouting <- 0.0 ;
+	float car_weight <- 100.0 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -62,7 +64,8 @@ global {
 			}
 		create road_node from: shape_file_nodes ;
 		
-		the_graph <- as_driving_graph (road, road_node) ;
+		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		create car number: nb_vehicles {
 			location <- one_of(road_node).location ;
@@ -169,6 +172,10 @@ global {
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 	}
+	reflex update_graph when: car_weight > 0.0 {
+		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		the_graph <- the_graph with_weights weight_map ;
+	}
 }
 
 // Veicoli definiti con skill advanced_driving
@@ -254,6 +261,9 @@ species vehicle skills: [driving] {
 
 species car parent:vehicle{
 	rgb color <- rnd_color(255) ;
+	list<path> a_path_list ;
+	list<road> edge_list ;
+	list<road_node> node_list ;
 	
 	float offset_distance<-0.2;
 	init{
@@ -468,6 +478,8 @@ experiment TrafficLightModel type: gui {
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: left_lane_choice ;
+	parameter "proba_rerouting" var: proba_rerouting ;
+	parameter "Weight" var: car_weight ;
 		
 	output {
 		display city_display type:2d {
@@ -535,6 +547,30 @@ experiment min_max_light type: batch until: (cycle = 7200) keep_seed: true {
 		loop i over: simulations {
 			save [i.min_timer,i.max_timer,i.n_trips] format: "csv" to: "../results/min_max_light.csv"
 			rewrite: false ;
+		}
+	}
+}
+
+experiment test type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Rerouting probability" var: proba_rerouting min: -11/5 max: 0.0 step: 1/5 ;
+	method exploration ;
+	bool delete_csv <- delete_file("../results/test1.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [10 ^ (i.proba_rerouting) * 100, last (i.trips), 100 * mean (i.car count (each.speed<1) / (length(i.car) + 1))] format: "csv" to: "../results/test1.csv"
+			rewrite: false ;
+		}
+	}
+}
+
+experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Car weight" var: car_weight min: 0.0 max: 3500.0 step: 100.0 ;
+	method exploration ;
+	// bool delete_csv <- delete_file("../results/car_weight.csv") ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.car_weight, last (i.trips), 100 * mean (i.car count (each.speed<1) / (length(i.car) + 1))] format: "csv"
+			to: "../results/car_weight"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
 		}
 	}
 }
