@@ -283,7 +283,7 @@ species car parent:vehicle{
 	}
 }
 
-species bus parent:vehicle{
+species bus parent:vehicle skills: [fipa] {
 	rgb color <- #yellow ;
 	road_node current_source ;
 	road_node current_destination ;
@@ -332,6 +332,10 @@ species bus parent:vehicle{
 		n_trips <- n_trips + 1 ;
 		do die ;
 	}
+	reflex ask_green_light when: current_road != road_now {
+		write name + ": ask for green light at " + current_target.name ;
+		do start_conversation to: [current_target] protocol: "fipa-request" performative: "request" contents: ['turnGreen'] ;
+	}
 }
 
 species road skills: [road_skill] {
@@ -349,7 +353,7 @@ species road skills: [road_skill] {
 }
 
 // specie road_node con intersection_skill
-species road_node skills: [intersection_skill] {
+species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
@@ -364,7 +368,18 @@ species road_node skills: [intersection_skill] {
 	float count_odd <- 0.0 ;
 	float count_even <- 0.0 ;
 	int tolerance <-0;
+	list<road_node> nearby_nodes <- [] ;
+	
+	init{
+		loop i over: roads_in {
+			add road_node(road(i).source_node) to: nearby_nodes ; 
+		}
+	}
 
+	reflex read_mailbox when: !empty(requests) {
+		write name + ": Found requests in mailbox" + string(requests) ;
+		float timex <- compute_bus_time(requests[0].sender) ;
+	}
 	
 	reflex classic_update_state when: is_traffic_light {
 		
@@ -414,6 +429,12 @@ species road_node skills: [intersection_skill] {
 		stop[] <- road_even_ok? roads_in_even : roads_in_odd ;	//	fermo le strade pari se finora avevano il verde
 		road_even_ok <- !road_even_ok ;							//	altrimenti fermo le dispari, poi aggiorno road_even_ok
 		return 0 ;
+	}
+
+	float compute_bus_time (bus bus_in) {
+		float bus_time <- 0.0 ;
+		bus_time <- bus_in.max_speed / road(bus_in.current_road).length / 3.6 ;
+		return bus_time ;
 	}
 	
 	aspect default {
