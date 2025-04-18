@@ -30,7 +30,6 @@ global {
 	list<int> trips <- [] ;
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
-	int cReroute <- 0 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -293,23 +292,8 @@ species car parent:vehicle{
 		do die ;
 	}
 
-	reflex change_route when: flip(10^proba_rerouting) and speed < 0.1 and current_road != nil and leading_vehicle!=nil {
-		if(current_road in road_node(current_target).stop){
-
-		}else{
-			write "" ;
-			write "" ;
-			write name ;
-			write "" ;
-			write "current location: " + location ;
-			write "old road source node: " + road(current_road).source_node.index + road(current_road).source_node.name + " " + road(current_road).source_node.location ;
-			write "old road target node:" + road(current_road).target_node.index + road(current_road).target_node.name + " " + road(current_road).target_node.location ;
-			current_path <- compute_path (graph: the_graph, target: final_target) ;
-			write "new location: " + location ;
-			write "new road source node: " + road(current_road).source_node.index + road(current_road).source_node.name + " " + road(current_road).source_node.location ;
-			write "new road target node: " + road(current_road).target_node.index + road(current_road).target_node.name + " " + road(current_road).target_node.location ;
-			cReroute <- cReroute + 1 ;
-		}
+	reflex change_route when: flip(10^proba_rerouting) /*and speed < 0.01*/ and current_road != nil and current_road != road_now {
+		current_path <- compute_path (graph: the_graph, target: final_target) ;
 	}
 }
 
@@ -489,7 +473,6 @@ experiment TrafficLightModel type: gui {
 			species road_node aspect:default ;
 		}
 		monitor "Number of trips" value: n_trips ;
-		monitor "Number of rerouted cars" value: cReroute ;
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
 			chart "Number of vehicles" type: series size: {0.5,0.5} position: {0,0} {
 				data "number of cars" value: length(car) color: #red ;
