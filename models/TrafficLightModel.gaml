@@ -173,7 +173,7 @@ global {
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 	}
-	reflex update_graph when: flip (0.1) and car_weight > 0.0{
+	reflex update_graph when: car_weight > 0.0 {
 		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
 		the_graph <- the_graph with_weights weight_map ;
 	}
