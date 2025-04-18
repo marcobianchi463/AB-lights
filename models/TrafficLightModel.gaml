@@ -291,10 +291,6 @@ species car parent:vehicle{
 		n_trips <- n_trips + 1 ;
 		do die ;
 	}
-
-	reflex change_route when: flip(10^proba_rerouting) /*and speed < 0.01*/ and current_road != nil and current_road != road_now {
-		current_path <- compute_path (graph: the_graph, target: final_target) ;
-	}
 }
 
 species bus parent:vehicle{
