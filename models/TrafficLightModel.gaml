@@ -101,8 +101,8 @@ global {
 		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
 		int rndnum <- rnd(100) ;
 		loop i over: road_node{
-			write i.index ;
-			write i.name ;
+			//write i.index ;
+			//write i.name ;
 			
 			//conto quante strade a doppio senso ci sono nel nodo
 			loop j over: i.roads_in {
@@ -350,8 +350,8 @@ species bus parent:vehicle skills: [fipa] {
 		// loop i over: conversations {
 		// 	do end_conversation message: [i.participants[1]] ;
 		// }
-		write "cycle " + cycle + " " + name + ": ask for green light at " + current_target.name ;
-		do start_conversation to: [current_target] protocol: "fipa-request" performative: "request" contents: ['turnGreen'] ;
+		//write "cycle " + cycle + " " + name + ": ask for green light at " + current_target.name ;
+		do start_conversation to: [current_target] protocol: "fipa-request" performative: "request" contents: [self.name] ;
 	}
 }
 
@@ -394,19 +394,38 @@ species road_node skills: [intersection_skill, fipa] {
 			add road_node(road(i).source_node) to: nearby_nodes ; 
 		}
 	}
+	reflex clean_dead{
+		loop i over: requests{
+			if dead(i.sender){
+				//remove i from: requests;
+				do end_conversation message: i contents: [ ('Rebound goodbye from' + name) ] ;
+			}
+		}
+		if dead(nearest_bus){
+			nearest_bus<-nil;
+		}
+	}
 
 	reflex read_mailbox when: !empty(requests) /*and !bus_on_road*/ {
-		write "cycle " + cycle + " " + name + ": Found requests in mailbox" + string(requests) ;
+		//write "cycle " + cycle + " " + name + ": Found requests in mailbox" + string(requests) ;
 		// float timex <- compute_bus_time(requests[0].sender) ;
+		
 		bus_on_road <- true ;
 		nearest_bus <- requests[0].sender ;
+		
 		loop i over: requests {
-			if bus(i.sender).distance_to_current_target < nearest_bus.distance_to_current_target {
+			
+			if(dead(i.sender)){
+				remove from: requests index: requests index_of i;
+				
+			}
+			else if bus(i.sender).distance_to_current_target < nearest_bus.distance_to_current_target {
 				nearest_bus <- i.sender ;
 			}
 		}
-		write "cycle " + cycle + " " + name + ": nearest bus is " + nearest_bus.name ;
+		//write "cycle " + cycle + " " + name + ": nearest bus is " + nearest_bus.name ;
 	}
+	
 
 	reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road != nearest_bus.road_now {
 		write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
