@@ -16,8 +16,8 @@ global {
 	
 	float step <- 0.1 #second ;
 	int nb_vehicles <- 0 ;
-	int nb_bus_lines <- 5 ;
-	int nb_bus_min <- 50 ;
+	int nb_bus_lines <- 1 ;
+	int nb_bus_min <- 2 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
@@ -394,17 +394,34 @@ species road_node skills: [intersection_skill, fipa] {
 			add road_node(road(i).source_node) to: nearby_nodes ; 
 		}
 	}
-	reflex clean_dead{
-		loop i over: requests{
-			if dead(i.sender){
-				//remove i from: requests;
-				do end_conversation message: i contents: [ ('Rebound goodbye from' + name) ] ;
+
+
+	reflex gaza_cleansing when: is_traffic_light{
+		loop i over: requests {
+			if dead(i.sender) or bus(i.sender).current_road in roads_out {
+				//write "cycle " + cycle + " " + name + ": terminate conversation with bus " + i.sender.name ;
+				do agree message: i contents: ["vattene a fare nel culo"] ;
+				if i.sender = nearest_bus {
+					nearest_bus <- nil ;
+					bus_on_road <- false ;
+				}
 			}
 		}
-		if dead(nearest_bus){
-			nearest_bus<-nil;
-		}
 	}
+
+
+
+	// reflex clean_dead{
+	// 	loop i over: requests{
+	// 		if dead(i.sender){
+	// 			//remove i from: requests;
+	// 			do end_conversation message: i contents: [ ('Rebound goodbye from' + name) ] ;
+	// 		}
+	// 	}
+	// 	if dead(nearest_bus){
+	// 		nearest_bus<-nil;
+	// 	}
+	// }
 
 	reflex read_mailbox when: !empty(requests) /*and !bus_on_road*/ {
 		//write "cycle " + cycle + " " + name + ": Found requests in mailbox" + string(requests) ;
@@ -427,21 +444,21 @@ species road_node skills: [intersection_skill, fipa] {
 	}
 	
 
-	reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road != nearest_bus.road_now {
-		write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
-		do agree message: requests[collect(requests, each.sender) index_of nearest_bus] contents: ["ok"] ;
-		if !(nearest_bus in collect(requests, each.sender)) {
-			write "cycle " + cycle + " " + name + " successfully terminated communication with " + nearest_bus.name ;
-			nearest_bus <- nil ;
-			bus_on_road <- false ;
-		} else {
-			write "cycle " + cycle + " " + "somtin wong" ;
-		}
-		/*
-			Da' problemi quando il bus arriva a destinazione perche' nearest_bus muore.
-			Risolvo se metto current_target != final_target come condizione alla richiesta di verde da parte del bus?
-		*/
-	}
+	// reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road in roads_out {
+	// 	write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
+	// 	//do agree message: requests[collect(requests, each.sender) index_of nearest_bus] contents: ["ok"] ;
+	// 	if !(nearest_bus in collect(requests, each.sender)) {
+	// 		write "cycle " + cycle + " " + name + " successfully terminated communication with " + nearest_bus.name ;
+	// 		nearest_bus <- nil ;
+	// 		bus_on_road <- false ;
+	// 	} else {
+	// 		write "cycle " + cycle + " " + "somtin wong" ;
+	// 	}
+	// 	/*
+	// 		Da' problemi quando il bus arriva a destinazione perche' nearest_bus muore.
+	// 		Risolvo se metto current_target != final_target come condizione alla richiesta di verde da parte del bus?
+	// 	*/
+	// }
 	
 	reflex classic_update_state when: is_traffic_light {
 		
@@ -483,6 +500,7 @@ species road_node skills: [intersection_skill, fipa] {
 			
 		}*/
 		if stupid_g {
+			timer <- timer + 1 ;
 			if bus_on_road and !dead(nearest_bus) {
 				if nearest_bus.road_now in roads_in_even {
 					if !road_even_ok {
@@ -492,7 +510,6 @@ species road_node skills: [intersection_skill, fipa] {
 					do switch_state ;
 				}
 			} else {
-				timer <- timer + 1 ; 
 				if !road_even_ok and timer >= green_time {
 					do switch_state ;
 				} else if timer >= red_time {
