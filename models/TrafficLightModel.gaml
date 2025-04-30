@@ -14,16 +14,17 @@ global {
 	file shape_file_nodes <- file("../includes/qgis/junction_clean.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
-	float step <- 1 #second ;
-	int nb_vehicles <- 500 ;
-	int nb_bus_lines <- 3 ;
-	int nb_bus_min <- 3 ;
+	float step <- 0.1 #second ;
+	int nb_vehicles <- 0 ;
+	int nb_bus_lines <- 5 ;
+	int nb_bus_min <- 50 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
-	bool intelligent_g <- true ;
+	bool intelligent_g <- false ;
+	bool stupid_g <- true ;
 	float t_ang_toll <- 10.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
@@ -329,6 +330,7 @@ species bus parent:vehicle skills: [fipa] {
 			}
 			// creo un bus che percorre lo stesso tragitto
 			create bus {
+				road_now <- nil ;
 				location <- myself.current_source.location ;
 				// aggiorno le variabili di partenza e arrivo del bus
 				int i <- int(rnd(0,nb_bus_lines-1)) ;
@@ -342,8 +344,13 @@ species bus parent:vehicle skills: [fipa] {
 		n_trips <- n_trips + 1 ;
 		do die ;
 	}
-	reflex ask_green_light when: current_road != road_now {
-		write name + ": ask for green light at " + current_target.name ;
+
+	reflex ask_green_light when: current_road != road_now and current_target != final_target and current_target != nil and road_node(current_target).is_traffic_light{
+		// chiudo eventuali conversazioni aperte
+		// loop i over: conversations {
+		// 	do end_conversation message: [i.participants[1]] ;
+		// }
+		write "cycle " + cycle + " " + name + ": ask for green light at " + current_target.name ;
 		do start_conversation to: [current_target] protocol: "fipa-request" performative: "request" contents: ['turnGreen'] ;
 	}
 }
@@ -379,6 +386,8 @@ species road_node skills: [intersection_skill, fipa] {
 	float count_even <- 0.0 ;
 	int tolerance <-0;
 	list<road_node> nearby_nodes <- [] ;
+	bus nearest_bus <- nil ;
+	bool bus_on_road <- false ;
 	
 	init{
 		loop i over: roads_in {
@@ -386,9 +395,33 @@ species road_node skills: [intersection_skill, fipa] {
 		}
 	}
 
-	reflex read_mailbox when: !empty(requests) {
-		write name + ": Found requests in mailbox" + string(requests) ;
-		float timex <- compute_bus_time(requests[0].sender) ;
+	reflex read_mailbox when: !empty(requests) /*and !bus_on_road*/ {
+		write "cycle " + cycle + " " + name + ": Found requests in mailbox" + string(requests) ;
+		// float timex <- compute_bus_time(requests[0].sender) ;
+		bus_on_road <- true ;
+		nearest_bus <- requests[0].sender ;
+		loop i over: requests {
+			if bus(i.sender).distance_to_current_target < nearest_bus.distance_to_current_target {
+				nearest_bus <- i.sender ;
+			}
+		}
+		write "cycle " + cycle + " " + name + ": nearest bus is " + nearest_bus.name ;
+	}
+
+	reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road != nearest_bus.road_now {
+		write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
+		do agree message: requests[collect(requests, each.sender) index_of nearest_bus] contents: ["ok"] ;
+		if !(nearest_bus in collect(requests, each.sender)) {
+			write "cycle " + cycle + " " + name + " successfully terminated communication with " + nearest_bus.name ;
+			nearest_bus <- nil ;
+			bus_on_road <- false ;
+		} else {
+			write "cycle " + cycle + " " + "somtin wong" ;
+		}
+		/*
+			Da' problemi quando il bus arriva a destinazione perche' nearest_bus muore.
+			Risolvo se metto current_target != final_target come condizione alla richiesta di verde da parte del bus?
+		*/
 	}
 	
 	reflex classic_update_state when: is_traffic_light {
@@ -409,28 +442,43 @@ species road_node skills: [intersection_skill, fipa] {
 				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
 			}
 			if road_even_ok and count_odd >= count_even + tolerance and timer >= min_timer or timer >= max_timer{
-				timer <- 0 ;
-				color <- #green ;
 				do switch_state ;
 			}
 			if !road_even_ok and count_odd + tolerance <= count_even  and timer >= min_timer or timer >= max_timer{
-				timer <- 0 ;
-				color <- #red ;
 				do switch_state ;	
 			}
 			
 			
 			
-		}else{
-			timer <- timer + 1 ;
-			if (!road_even_ok and timer >= green_time) {
-				timer <- 0 ;
-				color <- #red ;
-				do switch_state ;			
-			} else if (timer >= red_time) {
-				timer <- 0 ;
-				color <- #green ;
-				do switch_state ;
+		}/*else{
+			if !empty(requests) {
+				// timer <- tiemx ;
+			} else {
+				timer <- timer + 1 ;
+				if (!road_even_ok and timer >= green_time) {
+					do switch_state ;			
+				} else if (timer >= red_time) {
+					do switch_state ;
+				}
+			}
+			
+		}*/
+		if stupid_g {
+			if bus_on_road and !dead(nearest_bus) {
+				if nearest_bus.road_now in roads_in_even {
+					if !road_even_ok {
+						do switch_state ;
+					}
+				} else if road_even_ok {
+					do switch_state ;
+				}
+			} else {
+				timer <- timer + 1 ; 
+				if !road_even_ok and timer >= green_time {
+					do switch_state ;
+				} else if timer >= red_time {
+					do switch_state ;
+				}
 			}
 		}
 	}
@@ -438,12 +486,14 @@ species road_node skills: [intersection_skill, fipa] {
 	int switch_state {
 		stop[] <- road_even_ok? roads_in_even : roads_in_odd ;	//	fermo le strade pari se finora avevano il verde
 		road_even_ok <- !road_even_ok ;							//	altrimenti fermo le dispari, poi aggiorno road_even_ok
+		color <- color = #red ? #green : #red ;
+		timer <- 0 ;
 		return 0 ;
 	}
 
 	float compute_bus_time (bus bus_in) {
 		float bus_time <- 0.0 ;
-		bus_time <- bus_in.max_speed / road(bus_in.current_road).length / 3.6 ;
+		bus_time <- road(bus_in.current_road).length / bus_in.max_speed / 3.6 ;
 		return bus_time ;
 	}
 	
@@ -475,6 +525,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Minimum number of buses:" var: nb_bus_min ;
 	parameter "Maximum speed:" var: v_maxspeed ;
 	parameter "Intelligent traffic lights:" var:intelligent_g ;
+	parameter "Stupid traffic lights:" var:stupid_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "User switch:" var: left_lane_choice ;
