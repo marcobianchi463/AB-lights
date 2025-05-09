@@ -398,9 +398,9 @@ species road_node skills: [intersection_skill, fipa] {
 
 	reflex gaza_cleansing when: is_traffic_light{
 		loop i over: requests {
-			if dead(i.sender) or bus(i.sender).current_road in roads_out {
+			if /*dead(i.sender) or */bus(i.sender).current_road in roads_out {
 				//write "cycle " + cycle + " " + name + ": terminate conversation with bus " + i.sender.name ;
-				do agree message: i contents: ["vattene a fare nel culo"] ;
+				do agree message: i contents: ["Crossed the road"] ;
 				if i.sender = nearest_bus {
 					nearest_bus <- nil ;
 					bus_on_road <- false ;
@@ -433,7 +433,7 @@ species road_node skills: [intersection_skill, fipa] {
 		loop i over: requests {
 			
 			if(dead(i.sender)){
-				remove from: requests index: requests index_of i;
+				// remove from: requests index: requests index_of i;
 				
 			}
 			else if bus(i.sender).distance_to_current_target < nearest_bus.distance_to_current_target {
