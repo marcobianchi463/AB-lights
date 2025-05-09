@@ -14,7 +14,7 @@ global {
 	file shape_file_nodes <- file("../includes/qgis/junction_clean.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
-	float step <- 0.1 #second ;
+	float step <- 1.0 #second ;
 	int nb_vehicles <- 0 ;
 	int nb_bus_lines <- 1 ;
 	int nb_bus_min <- 2 ;
