@@ -15,8 +15,8 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 0 ;
-	int nb_bus_lines <- 1 ;
+	int nb_vehicles <- 500;
+	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 2 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
@@ -208,6 +208,12 @@ species vehicle skills: [driving] {
 		do drive ;
 	}
 	
+	reflex increment_car_count_of_road when: true{
+		if(road_now != current_road){
+			road(current_road).car_count_per_hour <- road(current_road).car_count_per_hour +1;
+		}
+	}
+	
 	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil{
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
@@ -358,6 +364,10 @@ species bus parent:vehicle skills: [fipa] {
 species road skills: [road_skill] {
 	rgb color <- #blue ;
 	string oneway ;
+	int car_count_per_hour<-0;
+	bool reset_car_count <- false;
+
+	
 	aspect base {
 		draw shape color: color ;
 	}
@@ -367,6 +377,15 @@ species road skills: [road_skill] {
 			length <- length+ float(i) ;
 		}
 	}
+	reflex check_reset when: reset_car_count = true {
+		car_count_per_hour<-0;
+		reset_car_count<-false;
+	}
+	reflex reset_car_count when: every(#h )
+	{
+		reset_car_count<-true;
+	}
+	
 }
 
 // specie road_node con intersection_skill
@@ -660,4 +679,11 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 			to: "../results/car_weight"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
 		}
 	}
+}
+
+experiment validation_flux type: gui {
+    output {
+	monitor Median_flux value: mean(road collect each.car_count_per_hour) refresh: every(#h);
+	
+    }
 }
