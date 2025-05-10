@@ -37,9 +37,11 @@ global {
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
 	int max_timer <- int( 150 / step ) ;
+	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
 	init {
+		seed <- 1.0 ;
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
@@ -127,7 +129,7 @@ global {
 			
 			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
 			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
-			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and !(i.linked_count = length(i.roads_out))) {
+			if (length(i.roads_in) > 2 /*or length(i.roads_in) = 2 and !(i.linked_count = length(i.roads_out))*/) {
 				i.is_traffic_light <- true ;
 				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
 				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
@@ -287,7 +289,7 @@ species car parent:vehicle{
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
 		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
-		current_date.minute*60 + current_date.second) / 7200.0) / 2.0)*nb_vehicles){
+		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
 				location <- one_of(building).location ;
 				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
@@ -306,6 +308,7 @@ species bus parent:vehicle skills: [fipa] {
 	road_node current_destination ;
 	rgb line_color;
 
+	bool ask_green_ok <- true ;
 	
 	float offset_distance<-0.3;
 	init{
@@ -351,12 +354,19 @@ species bus parent:vehicle skills: [fipa] {
 		do die ;
 	}
 
-	reflex ask_green_light when: current_road != road_now and current_target != final_target and current_target != nil and road_node(current_target).is_traffic_light{
+	reflex update_bus_state {
+		if (current_road != road_now) {
+			ask_green_ok <- true ;	
+		}
+	}
+
+	reflex ask_green_light when: ask_green_ok and distance_to_current_target < bus_request_distance and current_target != final_target and current_target != nil and road_node(current_target).is_traffic_light{
 		// chiudo eventuali conversazioni aperte
 		// loop i over: conversations {
 		// 	do end_conversation message: [i.participants[1]] ;
 		// }
 		//write "cycle " + cycle + " " + name + ": ask for green light at " + current_target.name ;
+		ask_green_ok <- false ;
 		do start_conversation to: [current_target] protocol: "fipa-request" performative: "request" contents: [self.name] ;
 	}
 }
@@ -377,13 +387,16 @@ species road skills: [road_skill] {
 			length <- length+ float(i) ;
 		}
 	}
-	reflex check_reset when: reset_car_count = true {
-		car_count_per_hour<-0;
-		reset_car_count<-false;
-	}
-	reflex reset_car_count when: every(#h )
-	{
-		reset_car_count<-true;
+	// reflex check_reset when: reset_car_count = true {
+	// 	car_count_per_hour<-0;
+	// 	reset_car_count<-false;
+	// }
+	// reflex reset_car_count when: every(#h )
+	// {
+	// 	reset_car_count<-true;
+	// }
+	reflex car_count_reset when: cycle mod 3600 #seconds = 1 {
+		car_count_per_hour <- 0 ;
 	}
 	
 }
@@ -535,6 +548,9 @@ species road_node skills: [intersection_skill, fipa] {
 					do switch_state ;
 				}
 			}
+			if timer >= max_timer {
+				do switch_state ;
+			}
 		}
 	}
 	
@@ -586,6 +602,7 @@ experiment TrafficLightModel type: gui {
 	parameter "User switch:" var: left_lane_choice ;
 	parameter "proba_rerouting" var: proba_rerouting ;
 	parameter "Weight" var: car_weight ;
+	parameter "Max distance for green light request" var: bus_request_distance ;
 		
 	output {
 		display city_display type:2d {
@@ -607,12 +624,12 @@ experiment TrafficLightModel type: gui {
 				color: #purple use_second_y_axis: true ;
 			}
          	chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0.5} {
-                 data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
-                 data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
+				data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
+				data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
 	     }
 	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} {
-                 data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;
-                 
+				data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
+				data "Median_flux" value: mean(road collect each.car_count_per_hour) use_second_y_axis: true ;
 	     }
          
 		}
@@ -683,7 +700,6 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 
 experiment validation_flux type: gui {
     output {
-	monitor Median_flux value: mean(road collect each.car_count_per_hour) refresh: every(#h);
 	
     }
 }
