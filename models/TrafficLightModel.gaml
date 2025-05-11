@@ -9,9 +9,11 @@ model TrafficLightModel
 
 global {
 	/** Insert the global definitions, variables and actions here */
-	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
+	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
+//	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
+//	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
@@ -31,6 +33,7 @@ global {
 	list<int> trips <- [] ;
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
+	float speed_weight <- 100.0 ;
 	
 	bool left_lane_choice <- false ;
 
@@ -40,7 +43,6 @@ global {
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
-	map<road, float> weights_map ;
 	init {
 		seed <- 1.0 ;
 		loop times: 10 {
@@ -76,11 +78,10 @@ global {
 					match "residential" {maxspeed <- 30 #km / #h ;}
 				}
 			}
-		weights_map <- road as_map (each::each.maxspeed) ;
-		
+
 		create road_node from: shape_file_nodes ;
 		
-		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length+speed_weight*each.maxspeed)) ;		
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		// INIZIALIZZAZIONE VEICOLI
@@ -642,8 +643,8 @@ experiment TrafficLightModel type: gui {
 				data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
 				data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
 	     }
-	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} {
-				data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
+	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
+				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
 				data "Median_flux" value: mean(road collect each.car_count_per_hour) use_second_y_axis: true ;
 	     }
          
