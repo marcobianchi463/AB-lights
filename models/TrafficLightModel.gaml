@@ -10,8 +10,8 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
@@ -40,11 +40,15 @@ global {
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
+	map<road, float> weights_map ;
 	init {
 		seed <- 1.0 ;
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
+
+		// INIZIALIZZAZIONE MAPPA STRADALE
+
 		create building from: shape_file_buildings ;
 		create road from: shape_file_roads with:[
 			num_lanes::max(2, int(read("lanes"))),
@@ -64,12 +68,23 @@ global {
 						}					
 					
 				}
+				// override maxspeed in base al tipo di strada
+				switch read("highway") {
+					match "primary" {maxspeed <- 80 #km / #h ;}
+					match "secondary" {maxspeed <- 70 #km / #h ;}
+					match "tertiary" {maxspeed <- 50 #km / #h ;}
+					match "residential" {maxspeed <- 30 #km / #h ;}
+				}
 			}
+		weights_map <- road as_map (each::each.maxspeed) ;
+		
 		create road_node from: shape_file_nodes ;
 		
 		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
+		// INIZIALIZZAZIONE VEICOLI
+
 		create car number: nb_vehicles {
 			location <- one_of(road_node).location ;
 			max_speed <- v_maxspeed #km / #h;
