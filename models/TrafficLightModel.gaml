@@ -10,10 +10,10 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-//	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
-//	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
-	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
+//	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
+//	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
@@ -43,6 +43,10 @@ global {
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
+
+	// variabili output
+	list<int> car_counts <- [] ;
+
 	init {
 		seed <- 1.0 ;
 		loop times: 10 {
@@ -81,7 +85,7 @@ global {
 
 		create road_node from: shape_file_nodes ;
 		
-		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length+speed_weight*each.maxspeed)) ;		
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight*length(each.all_agents)/each.length)) ;		
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		// INIZIALIZZAZIONE VEICOLI
@@ -190,6 +194,9 @@ global {
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
+		if cycle mod 3600 #seconds = 0 {
+			add mean(road collect each.car_count_per_hour) to: car_counts ;
+		}
 	}
 	reflex update_graph when: car_weight > 0.0 {
 		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
@@ -714,8 +721,12 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 	}
 }
 
-experiment validation_flux type: gui {
-    output {
-	
-    }
+experiment validation_flux type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Speed weight" var: speed_weight min: 50.0 max: 100.0 step: 50.0 ;
+	method exploration ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.speed_weight, last (i.trips), car_counts] format: "csv" to: "../results/validation_flux"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
+		}
+	}
 }
