@@ -129,7 +129,7 @@ global {
 			
 			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
 			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
-			if (length(i.roads_in) > 2 /*or length(i.roads_in) = 2 and !(i.linked_count = length(i.roads_out))*/) {
+			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and length(i.roads_out) - i.linked_count > 1 ) {
 				i.is_traffic_light <- true ;
 				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
 				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
