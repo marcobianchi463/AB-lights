@@ -67,10 +67,10 @@ global {
 			{
 				// override maxspeed e num_lanes in base al tipo di strada
 				switch read("highway") {
-					match "primary" {maxspeed <- 80 #km / #h; num_lanes <- max (num_lanes, 4)  ;}
-					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ;}
-					match "tertiary" {maxspeed <- 50 #km / #h ;}
-					match "residential" {maxspeed <- 30 #km / #h ;}
+					match "primary" {maxspeed <- 80 #km / #h; num_lanes <- max (num_lanes, 4)  ; is_main_road <- true ;}
+					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ; is_main_road <- true ;}
+					match "tertiary" {maxspeed <- 50 #km / #h ; is_main_road <- false ;}
+					match "residential" {maxspeed <- 30 #km / #h ; is_main_road <- false ;}
 				}
 				if oneway !="yes"{
 					
@@ -240,7 +240,7 @@ global {
 		n_trips <- 0 ;
 		if cycle mod 3600 #seconds = 0 {
 			write "cycle " + cycle ;
-			add mean(road collect each.car_count_per_hour) to: car_counts ;
+			add mean((road where road(each).is_main_road) collect road(each).car_count_per_hour) to: car_counts ;
 		}
 	}
 	reflex update_graph when: car_weight > 0.0 and cycle mod 300 #seconds = 0 {
@@ -306,6 +306,12 @@ species vehicle skills: [driving] {
 			{
 				// current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
 				// right_side_driving <- false ;
+				if road(current_road).num_lanes > 1 {
+					allowed_lanes <- list(road(current_road).num_lanes - 1, road(current_road).num_lanes - 2) ;
+				} else {
+					allowed_lanes <- list(road(current_road).num_lanes - 1) ;
+				}
+
 				acc_bias <- -50.0 ;
 			}else{
 				// right_side_driving <- true ;
@@ -449,6 +455,7 @@ species road skills: [road_skill] {
 	string oneway ;
 	int car_count_per_hour<-0;
 	bool reset_car_count <- false;
+	bool is_main_road ;
 
 	
 	aspect base {
@@ -706,7 +713,7 @@ experiment TrafficLightModel type: gui {
 	     }
 	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
 				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
-				data "Median_flux" value: mean(road collect each.car_count_per_hour) use_second_y_axis: true ;
+				data "Median_flux" value: mean((road where each.is_main_road) collect each.car_count_per_hour) use_second_y_axis: true ;
 	     }
          
 		}
