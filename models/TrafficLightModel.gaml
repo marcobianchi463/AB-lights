@@ -10,14 +10,14 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fiume.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fiume.shp") ;
 //	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
 //	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 500;
+	int nb_vehicles <- 15000 ;
 	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 2 ;
 	list<road_node> bus_destinations <- [] ;
@@ -27,7 +27,7 @@ global {
 	int v_maxspeed <- 150 ;
 	bool intelligent_g <- false ;
 	bool stupid_g <- true ;
-	float t_ang_toll <- 10.0 ;
+	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
@@ -35,7 +35,7 @@ global {
 	float car_weight <- 100.0 ;
 	float speed_weight <- 100.0 ;
 	
-	bool left_lane_choice <- false ;
+	bool left_lane_choice <- true ;
 
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
@@ -43,6 +43,10 @@ global {
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
+
+	list<road_node> nodi_belli <- [] ;
+	road_node nodo_lontano <- nil ;
+	road_node nodo_alfano <- nil ;
 
 	// variabili output
 	list<int> car_counts <- [] ;
@@ -61,6 +65,13 @@ global {
 			maxspeed::max(30.0 + rnd(5), (read("maxspeed_t")="urban:it")? 30.0+ rnd(5) : 50.0+rnd(5)),
 			oneway::string(read("oneway"))]
 			{
+				// override maxspeed e num_lanes in base al tipo di strada
+				switch read("highway") {
+					match "primary" {maxspeed <- 80 #km / #h; num_lanes <- max (num_lanes, 4)  ;}
+					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ;}
+					match "tertiary" {maxspeed <- 50 #km / #h ;}
+					match "residential" {maxspeed <- 30 #km / #h ;}
+				}
 				if oneway !="yes"{
 					
 						create road {
@@ -74,18 +85,120 @@ global {
 						}					
 					
 				}
-				// override maxspeed in base al tipo di strada
-				switch read("highway") {
-					match "primary" {maxspeed <- 80 #km / #h ;}
-					match "secondary" {maxspeed <- 70 #km / #h ;}
-					match "tertiary" {maxspeed <- 50 #km / #h ;}
-					match "residential" {maxspeed <- 30 #km / #h ;}
-				}
 			}
 
 		create road_node from: shape_file_nodes ;
 		
-		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight*length(each.all_agents)/each.length)) ;		
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
+		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
+		
+		// INIZIALIZZAZIONE SEMAFORI
+		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
+		int rndnum <- rnd(100) ;
+		loop i over: road_node{// INIZIALIZZAZIONE SEMAFORI
+			//write i.index ;
+			//write i.name ;
+			
+			//conto quante strade a doppio senso ci sono nel nodo
+			loop j over: i.roads_in {
+				// a quanto pare loopare su una lista di agenti strada non è abbastanza
+				// per far capire che j è una strada 
+				if (road(j).linked_road != nil) {
+					i.linked_count <- i.linked_count + 1 ;
+				}
+				add j to: i.ordered_road_list ;
+			}
+			
+			i.roads_in <- i.roads_in sort_by(-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)));
+
+			loop j over: i.roads_out {
+				if road(j).linked_road = nil {
+					add j to: i.ordered_road_list ;
+				}
+			}
+			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
+			//NON toccare la riga sotto
+			i.ordered_road_list <- i.ordered_road_list sort_by (-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)) );
+			
+			
+			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
+			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
+			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and length(i.roads_out) - i.linked_count > 1 ) {
+				i.is_traffic_light <- true ;
+				// i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
+				i.timer <- 0 ;		// con questo tutti i semafori hanno la stessa fase
+				
+				if (length(i.ordered_road_list) = 3 and length(i.roads_in) = 3) {
+					float angle <- atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) - atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 1
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) - atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 1 e 2
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) - atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 2
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_odd ;
+					}
+				}else{
+					loop j from:0 to:length(i.ordered_road_list)-1 step:2{
+						if i.ordered_road_list[j] in i.roads_in{
+							add i.ordered_road_list[j] to: i.roads_in_even ;
+						}
+					}
+					loop j from:1 to:length(i.ordered_road_list)-1 step:2{
+						if i.ordered_road_list[j] in i.roads_in{
+							add i.ordered_road_list[j] to: i.roads_in_odd ;
+						}
+					}
+				}
+				
+				add i.roads_in_even to: i.stop ;
+			}
+			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
+		}
+		// Pulizia grandi incroci
+		loop i over: road_node {
+			if i.linked_count = 0 and i.is_traffic_light {
+				write "processing node #" + i.index ;
+				nodi_belli <- union(i.roads_in collect road(each).source_node, i.roads_out collect road(each).target_node) ;
+				nodi_belli <- nodi_belli sort_by (-atan2((road_node(each).location.y-i.location.y) , (road_node(each).location.x-i.location.x))) ;
+				write "0" ;
+				if nodi_belli count (each distance_to i < 25 #m) = 3 and length(nodi_belli) = 4 {
+					write "1" ;
+					nodo_lontano <- nodi_belli where (each distance_to i > 25 #m) at 0 ;
+					if i.ordered_road_list at (nodi_belli index_of nodo_lontano) in i.roads_in {
+						write "2" ;
+						nodo_alfano <- nodi_belli at ((nodi_belli index_of nodo_lontano + 2) mod 4) ;
+						write "3" ;
+						do pulizia(nodo_alfano) ;
+						write "4" ;
+						if length(nodo_alfano.ordered_road_list) = 4 and nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+							write "5" ;
+							nodo_alfano <- road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node ;
+							do pulizia(nodo_alfano) ;
+							if nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+								nodo_alfano <- road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node ;
+								do pulizia(nodo_alfano) ;
+							}
+						}
+						// ask road(i.ordered_road_list at ((nodi_belli index_of nodo_lontano + 1) mod 4)) {do kys();}
+						// ask road(i.ordered_road_list at ((nodi_belli index_of nodo_lontano + 1) mod 4)) {do kys();}
+					}
+				}
+			}
+		}
+		weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		// INIZIALIZZAZIONE VEICOLI
@@ -119,88 +232,24 @@ global {
 			} */
 		}
 		 
-		// INIZIALIZZAZIONE SEMAFORI
-		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
-		int rndnum <- rnd(100) ;
-		loop i over: road_node{
-			//write i.index ;
-			//write i.name ;
-			
-			//conto quante strade a doppio senso ci sono nel nodo
-			loop j over: i.roads_in {
-				// a quanto pare loopare su una lista di agenti strada non è abbastanza
-				// per far capire che j è una strada 
-				if (road(j).linked_road != nil) {
-					i.linked_count <- i.linked_count + 1 ;
-					
-				}else{
-					add j to: i.ordered_road_list  ; //aggiungo la strada alla lista ordinata solo se è oneway
-				}
-				
-				
-			}
-			
-			i.roads_in <- i.roads_in sort_by(-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)));
-			i.ordered_road_list <<+ i.roads_out;
-			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
-			//NON toccare la riga sotto
-			i.ordered_road_list <- i.ordered_road_list sort_by (-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)) );
-			
-			
-			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
-			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
-			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and length(i.roads_out) - i.linked_count > 1 ) {
-				i.is_traffic_light <- true ;
-				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
-				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
-				
-				if (length(i.roads_in) = 3) {
-					float angle <- atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) - atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 1
-						add i.roads_in[0] to: i.roads_in_even ;
-						add i.roads_in[1] to: i.roads_in_even ;
-						add i.roads_in[2] to: i.roads_in_odd ;
-					}
-					angle <- atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) - atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 1 e 2
-						add i.roads_in[1] to: i.roads_in_even ;
-						add i.roads_in[2] to: i.roads_in_even ;
-						add i.roads_in[0] to: i.roads_in_odd ;
-					}
-					angle <- atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) - atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 2
-						add i.roads_in[2] to: i.roads_in_even ;
-						add i.roads_in[0] to: i.roads_in_even ;
-						add i.roads_in[1] to: i.roads_in_odd ;
-					}
-				}else{
-					loop j from:0 to:length(i.roads_in)-1 step:2{
-						add i.roads_in[j] to: i.roads_in_even;
-					}
-					loop j from:1 to:length(i.roads_in)-1 step:2{
-						add i.roads_in[j] to: i.roads_in_odd;
-					}
-				}
-				
-				add i.roads_in_even to: i.stop ;
-			}
-			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
-		}
+
 	}
 	reflex update_outputs {
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 		if cycle mod 3600 #seconds = 0 {
+			write "cycle " + cycle ;
 			add mean(road collect each.car_count_per_hour) to: car_counts ;
 		}
 	}
-	reflex update_graph when: car_weight > 0.0 {
-		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+	reflex update_graph when: car_weight > 0.0 and cycle mod 300 #seconds = 0 {
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m*length(each.all_agents)))) ;		
 		the_graph <- the_graph with_weights weight_map ;
+	}
+	action pulizia(road_node nodo){
+		nodo.stop <- [] ;
+		nodo.is_traffic_light <- false ;
 	}
 }
 
@@ -212,7 +261,7 @@ species vehicle skills: [driving] {
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_respect_priorities <- 0.75 + rnd(0.24);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
 		
@@ -257,7 +306,7 @@ species vehicle skills: [driving] {
 			{
 				// current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
 				// right_side_driving <- false ;
-				acc_bias <- -10.0 ;
+				acc_bias <- -50.0 ;
 			}else{
 				// right_side_driving <- true ;
 				acc_bias <- 1.0 ;
@@ -304,6 +353,7 @@ species car parent:vehicle{
 		proba_respect_priorities <- 0.95 + rnd(0.04);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
+		// proba_block_node <- 0.5;
 		
 	}
 
@@ -421,7 +471,9 @@ species road skills: [road_skill] {
 	reflex car_count_reset when: cycle mod 3600 #seconds = 1 {
 		car_count_per_hour <- 0 ;
 	}
-	
+	action kys {
+		do die ;
+	}
 }
 
 // specie road_node con intersection_skill
@@ -429,9 +481,10 @@ species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	int switch_time <- 20 + rnd(20);
+	int switch_time <- 60/* + rnd(20)*/ ;
 	int green_time <- int(switch_time / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
+	int yellow_time <- int(5 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #green ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
@@ -453,7 +506,7 @@ species road_node skills: [intersection_skill, fipa] {
 
 	reflex gaza_cleansing when: is_traffic_light{
 		loop i over: requests {
-			if /*dead(i.sender) or */bus(i.sender).current_road in roads_out {
+			if dead(i.sender) or bus(i.sender).current_road in roads_out {
 				//write "cycle " + cycle + " " + name + ": terminate conversation with bus " + i.sender.name ;
 				do agree message: i contents: ["Crossed the road"] ;
 				if i.sender = nearest_bus {
@@ -566,9 +619,11 @@ species road_node skills: [intersection_skill, fipa] {
 				}
 			} else {
 				if !road_even_ok and timer >= green_time {
-					do switch_state ;
+					stop <- union(roads_in_even, roads_in_odd) ;
+					if timer >= green_time + yellow_time {do switch_state ;}
 				} else if timer >= red_time {
-					do switch_state ;
+					stop <- roads_in_even + roads_in_odd ;
+					if timer >= green_time + yellow_time {do switch_state ;}
 				}
 			}
 			if timer >= max_timer {
@@ -577,12 +632,11 @@ species road_node skills: [intersection_skill, fipa] {
 		}
 	}
 	
-	int switch_state {
+	action switch_state {
 		stop[] <- road_even_ok? roads_in_even : roads_in_odd ;	//	fermo le strade pari se finora avevano il verde
 		road_even_ok <- !road_even_ok ;							//	altrimenti fermo le dispari, poi aggiorno road_even_ok
 		color <- color = #red ? #green : #red ;
 		timer <- 0 ;
-		return 0 ;
 	}
 
 	float compute_bus_time (bus bus_in) {
@@ -622,7 +676,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Stupid traffic lights:" var:stupid_g ;
 	parameter "T-junction angle tolerance:" var: t_ang_toll ;
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
-	parameter "User switch:" var: left_lane_choice ;
+	parameter "Left lane switch:" var: left_lane_choice ;
 	parameter "proba_rerouting" var: proba_rerouting ;
 	parameter "Weight" var: car_weight ;
 	parameter "Max distance for green light request" var: bus_request_distance ;
