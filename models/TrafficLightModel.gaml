@@ -17,7 +17,7 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 15000 ;
+	int nb_vehicles <- 3500 ;
 	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 2 ;
 	list<road_node> bus_destinations <- [] ;
