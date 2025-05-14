@@ -10,7 +10,7 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fiume.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium4.shp") ;
 	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fiume.shp") ;
 //	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
 //	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
@@ -52,7 +52,7 @@ global {
 	list<int> car_counts <- [] ;
 
 	init {
-		seed <- 1.0 ;
+		// seed <- 1.0 ;
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
@@ -488,7 +488,7 @@ species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
 	int timer ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	int switch_time <- 60/* + rnd(20)*/ ;
+	int switch_time <- 60 + rnd(5) ;
 	int green_time <- int(switch_time / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
 	int yellow_time <- int(5 / step #s) ;
