@@ -722,8 +722,6 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 	}
 }
 
-<<<<<<< Updated upstream
-=======
 experiment validation_flux type: batch until: (cycle = 0.1*3600) keep_seed: true {
 	parameter "Speed weight" var: speed_weight min: 100.0 max: 100.0 step: 50.0 ;
 	method exploration ;
@@ -733,5 +731,4 @@ experiment validation_flux type: batch until: (cycle = 0.1*3600) keep_seed: true
 			save [car collect each.speed_vector] format: "csv" to: "../results/speed"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv"+seed rewrite: false ;
 		}
 	}
->>>>>>> Stashed changes
 }
