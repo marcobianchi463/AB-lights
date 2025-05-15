@@ -171,6 +171,7 @@ global {
 		}
 	}
 	reflex update_outputs {
+		write cycle ;
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
@@ -273,6 +274,9 @@ species car parent:vehicle{
 	list<path> a_path_list ;
 	list<road> edge_list ;
 	list<road_node> node_list ;
+
+	list<float> speed_vector <- [] ;
+	list<float> acceleration_vector <- [] ;
 	
 	float offset_distance<-0.2;
 	init{
@@ -282,6 +286,11 @@ species car parent:vehicle{
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
 		
+	}
+
+	reflex update_output_status when: every(2 #seconds){
+		add speed *3.6  to: speed_vector ;
+		add acceleration *3.6 to: acceleration_vector ;
 	}
 
 	reflex time_to_go when: final_target = nil {
@@ -421,6 +430,10 @@ species road_node skills: [intersection_skill, fipa] {
 	bus nearest_bus <- nil ;
 	bool bus_on_road <- false ;
 	
+	int cars_in <- 0 ;
+	int cars_in_threshold <- 0 ;
+	int trigger_level <- 0 ;
+	
 	init{
 		loop i over: roads_in {
 			add road_node(road(i).source_node) to: nearby_nodes ; 
@@ -492,8 +505,19 @@ species road_node skills: [intersection_skill, fipa] {
 	// 	*/
 	// }
 	
+	reflex light_comm when: is_traffic_light and every(5 #seconds) {
+		loop i over: roads_out {
+			if road_node(road(i).target_node).is_traffic_light {
+				cars_in <- sum ((roads_in where (road(each).source_node != road(i).target_node)) collect length(road(each).all_agents)) ;
+				do start_conversation to: [road_node(road(i).target_node)] protocol: "fipa-inform" performative: "inform" contents: [self.cars_in] ;
+				if cars_in > cars_in_threshold {
+					do start_conversation to: [road_node(road(i).target_node)] protocol: "fipa-request" performative: "request" contents: [self.trigger_level] ;
+				}
+			}
+		}
+	}
+
 	reflex classic_update_state when: is_traffic_light {
-		
 		if intelligent_g{
 
 			timer <-timer+1;
@@ -698,8 +722,16 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 	}
 }
 
-experiment validation_flux type: gui {
-    output {
-	
-    }
+<<<<<<< Updated upstream
+=======
+experiment validation_flux type: batch until: (cycle = 0.1*3600) keep_seed: true {
+	parameter "Speed weight" var: speed_weight min: 100.0 max: 100.0 step: 50.0 ;
+	method exploration ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.speed_weight, last (i.trips), car_counts, car collect each.acceleration_vector] format: "csv" to: "../results/acceleration"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv"+seed rewrite: false ;
+			save [car collect each.speed_vector] format: "csv" to: "../results/speed"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv"+seed rewrite: false ;
+		}
+	}
+>>>>>>> Stashed changes
 }
