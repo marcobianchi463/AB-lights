@@ -25,6 +25,7 @@ global {
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
+	bool godly_g <- false;
 	bool intelligent_g <- false ;
 	bool stupid_g <- true ;
 	float t_ang_toll <- 1.0 ;
@@ -36,6 +37,12 @@ global {
 	float speed_weight <- 100.0 ;
 	
 	bool left_lane_choice <- true ;
+	
+	//Godly_g weights
+	float bus_factor<-200.0;
+	float car_factor<-1.0;
+	float ask_factor<-150.0;
+	
 
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
@@ -503,6 +510,10 @@ species road_node skills: [intersection_skill, fipa] {
 	list<road_node> nearby_nodes <- [] ;
 	bus nearest_bus <- nil ;
 	bool bus_on_road <- false ;
+	//Godly_g variables
+	float roads_in_even_weight <-0.0;
+	float roads_in_odd_weight <- 0.0;
+	
 	
 	init{
 		loop i over: roads_in {
@@ -511,7 +522,7 @@ species road_node skills: [intersection_skill, fipa] {
 	}
 
 
-	reflex gaza_cleansing when: is_traffic_light{
+	reflex bus_still_here when: is_traffic_light{
 		loop i over: requests {
 			if dead(i.sender) or bus(i.sender).current_road in roads_out {
 				//write "cycle " + cycle + " " + name + ": terminate conversation with bus " + i.sender.name ;
@@ -558,6 +569,13 @@ species road_node skills: [intersection_skill, fipa] {
 		//write "cycle " + cycle + " " + name + ": nearest bus is " + nearest_bus.name ;
 	}
 	
+	
+	
+	reflex congestion_ask_your_neighbor when:true=false {
+		loop i over: roads_out{
+			
+		}
+	}
 
 	// reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road in roads_out {
 	// 	write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
@@ -576,6 +594,42 @@ species road_node skills: [intersection_skill, fipa] {
 	// }
 	
 	reflex classic_update_state when: is_traffic_light {
+		if godly_g{
+			timer <-timer+1;
+			count_even <- 0.0 ;
+			count_odd <- 0.0 ;
+			
+			roads_in_even_weight<-0.0;
+			roads_in_odd_weight<-0.0;
+			
+			loop k over: roads_in_even{
+				count_even <- count_even + float ( length ( road(k).all_agents ) / ( road(k).length ) ) ;
+			}
+			loop l over: roads_in_odd{
+				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
+			}
+			
+			if bus_on_road and !dead(nearest_bus) {
+				if nearest_bus.road_now in roads_in_even {
+					roads_in_even_weight <- roads_in_even_weight + bus_factor;
+				} else if nearest_bus.road_now in roads_in_odd {
+					roads_in_odd_weight <- roads_in_odd_weight + bus_factor;
+				}
+			}
+			
+			
+			//15 è tempo min prima di switch da parametrizzare
+			if timer > 15 {
+				if road_even_ok and roads_in_odd_weight > roads_in_even_weight +tolerance{
+					do switch_state;
+				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
+					do switch_state;
+				}else if timer > 150 {
+					do switch_state;
+				}
+			}
+			
+		}
 		
 		if intelligent_g{
 
@@ -674,19 +728,19 @@ experiment TrafficLightModel type: gui {
 	parameter "Shapefile for the roads:" var: shape_file_roads category: "GIS" ;
 	parameter "Shapefile for the bounds:" var: shape_file_nodes category: "GIS" ;
 	// parameter "Probability of respawn:" var: respawn_prob category: "BOH" ;
-	parameter "Vehicle dimension:" var: dimension ;
-	parameter "Mean number of vehicles:" var: nb_vehicles ;
-	parameter "Number of bus lines:" var: nb_bus_lines ;
-	parameter "Minimum number of buses:" var: nb_bus_min ;
-	parameter "Maximum speed:" var: v_maxspeed ;
-	parameter "Intelligent traffic lights:" var:intelligent_g ;
-	parameter "Stupid traffic lights:" var:stupid_g ;
-	parameter "T-junction angle tolerance:" var: t_ang_toll ;
+	parameter "Vehicle dimension:" var: dimension category: "Vehicles";
+	parameter "Mean number of vehicles:" var: nb_vehicles category: "Vehicles";
+	parameter "Number of bus lines:" var: nb_bus_lines category: "Vehicles";
+	parameter "Minimum number of buses:" var: nb_bus_min category: "Vehicles";
+	parameter "Maximum speed:" var: v_maxspeed category: "Vehicles";
+	parameter "Intelligent traffic lights:" var:intelligent_g category: "Intersection";
+	parameter "Stupid traffic lights:" var:stupid_g category: "Intersection";
+	parameter "T-junction angle tolerance:" var: t_ang_toll category: "Intersection";
 	// parameter "Minimum timer for traffic light:" var: min_timer ;
-	parameter "Left lane switch:" var: left_lane_choice ;
-	parameter "proba_rerouting" var: proba_rerouting ;
-	parameter "Weight" var: car_weight ;
-	parameter "Max distance for green light request" var: bus_request_distance ;
+	parameter "Left lane switch:" var: left_lane_choice category: "Vehicles";
+	parameter "proba_rerouting" var: proba_rerouting category: "Vehicles";
+	parameter "Weight" var: car_weight category: "Vehicles";
+	parameter "Max distance for green light request" var: bus_request_distance category: "Vehicles";
 		
 	output {
 		display city_display type:2d {
