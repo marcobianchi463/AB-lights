@@ -571,9 +571,13 @@ species road_node skills: [intersection_skill, fipa] {
 	
 	
 	
-	reflex congestion_ask_your_neighbor when:true=false {
+	reflex congestion_ask_your_neighbor when:flip(0.05) {
 		loop i over: roads_out{
-			
+			write road(i).segment_lengths;
+			if sum(collect(road(i).all_agents,car(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.9{
+						do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [i] ;
+				
+			}
 		}
 	}
 
@@ -617,16 +621,43 @@ species road_node skills: [intersection_skill, fipa] {
 				}
 			}
 			
+			if !empty(proposes){
+				loop j over: proposes{
+					if road(j.contents) in roads_in_even{
+						roads_in_even_weight <- roads_in_even_weight + ask_factor;
+					}
+					else{
+						roads_in_odd_weight <-roads_in_odd_weight +ask_factor;
+					}
+				}
+			}
 			
 			//15 è tempo min prima di switch da parametrizzare
 			if timer > 15 {
 				if road_even_ok and roads_in_odd_weight > roads_in_even_weight +tolerance{
 					do switch_state;
+					loop j over: proposes{
+						if road(j.contents) in roads_in_even{
+							do accept_proposal message: j contents: ['OK!'] ;
+						}else{
+							do reject_proposal message: j contents: ['No'] ;
+						}
+					}
 				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
 					do switch_state;
+					loop j over: proposes{
+						if road(j.contents) in roads_in_odd{
+							do accept_proposal message: j contents: ['OK!'] ;
+						}else{
+							do reject_proposal message: j contents: ['No'] ;
+						}
+					}
+				//Max timer
 				}else if timer > 150 {
 					do switch_state;
 				}
+				
+				
 			}
 			
 		}
@@ -733,6 +764,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Number of bus lines:" var: nb_bus_lines category: "Vehicles";
 	parameter "Minimum number of buses:" var: nb_bus_min category: "Vehicles";
 	parameter "Maximum speed:" var: v_maxspeed category: "Vehicles";
+	parameter "Godly traffic lights:" var:godly_g category: "Intersection";
 	parameter "Intelligent traffic lights:" var:intelligent_g category: "Intersection";
 	parameter "Stupid traffic lights:" var:stupid_g category: "Intersection";
 	parameter "T-junction angle tolerance:" var: t_ang_toll category: "Intersection";
@@ -741,6 +773,9 @@ experiment TrafficLightModel type: gui {
 	parameter "proba_rerouting" var: proba_rerouting category: "Vehicles";
 	parameter "Weight" var: car_weight category: "Vehicles";
 	parameter "Max distance for green light request" var: bus_request_distance category: "Vehicles";
+	parameter "Importance of buses: " var: bus_factor category: "Godly semafors controls";
+	parameter "Importance of congested roads: " var: ask_factor category: "Godly semafors controls";
+	parameter "Importance of cars: " var: car_factor category: "Godly semafors controls";
 		
 	output {
 		display city_display type:2d {
