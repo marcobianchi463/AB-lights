@@ -573,10 +573,10 @@ species road_node skills: [intersection_skill, fipa] {
 	
 	reflex congestion_ask_your_neighbor when:flip(0.05) {
 		loop i over: roads_out{
-			write road(i).segment_lengths;
-			if sum(collect(road(i).all_agents,car(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.9{
-						do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [i] ;
-				
+			//write road(i).segment_lengths;
+			if sum(collect(road(i).all_agents where (!dead(each) and each!=nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.9{
+						do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
+					//write i;
 			}
 		}
 	}
@@ -612,6 +612,8 @@ species road_node skills: [intersection_skill, fipa] {
 			loop l over: roads_in_odd{
 				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
 			}
+			roads_in_even_weight<-roads_in_even_weight+count_even * car_factor;
+			roads_in_odd_weight<-roads_in_odd_weight+count_even * car_factor;
 			
 			if bus_on_road and !dead(nearest_bus) {
 				if nearest_bus.road_now in roads_in_even {
@@ -623,11 +625,16 @@ species road_node skills: [intersection_skill, fipa] {
 			
 			if !empty(proposes){
 				loop j over: proposes{
-					if road(j.contents) in roads_in_even{
-						roads_in_even_weight <- roads_in_even_weight + ask_factor;
-					}
-					else{
-						roads_in_odd_weight <-roads_in_odd_weight +ask_factor;
+					loop k over: road_node(j.sender).roads_out{
+							if k in roads_in_even{
+								
+								roads_in_even_weight <- roads_in_even_weight + ask_factor;
+							}
+							else if k in roads_in_odd{
+
+								roads_in_odd_weight <-roads_in_odd_weight +ask_factor;
+							}
+						
 					}
 				}
 			}
