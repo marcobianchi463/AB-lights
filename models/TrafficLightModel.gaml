@@ -613,7 +613,7 @@ species road_node skills: [intersection_skill, fipa] {
 				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
 			}
 			roads_in_even_weight<-roads_in_even_weight+count_even * car_factor;
-			roads_in_odd_weight<-roads_in_odd_weight+count_even * car_factor;
+			roads_in_odd_weight<-roads_in_odd_weight+count_odd * car_factor;
 			
 			if bus_on_road and !dead(nearest_bus) {
 				if nearest_bus.road_now in roads_in_even {
@@ -662,6 +662,7 @@ species road_node skills: [intersection_skill, fipa] {
 				//Max timer
 				}else if timer > 150 {
 					do switch_state;
+					loop j over: proposes {do accept_proposal message: j contents: ['OK!'] ;}
 				}
 				
 				
@@ -775,7 +776,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Intelligent traffic lights:" var:intelligent_g category: "Intersection";
 	parameter "Stupid traffic lights:" var:stupid_g category: "Intersection";
 	parameter "T-junction angle tolerance:" var: t_ang_toll category: "Intersection";
-	// parameter "Minimum timer for traffic light:" var: min_timer ;
+	parameter "Minimum timer for traffic light:" var: min_timer ;
 	parameter "Left lane switch:" var: left_lane_choice category: "Vehicles";
 	parameter "proba_rerouting" var: proba_rerouting category: "Vehicles";
 	parameter "Weight" var: car_weight category: "Vehicles";
