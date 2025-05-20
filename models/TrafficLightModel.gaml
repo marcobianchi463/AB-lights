@@ -272,6 +272,7 @@ species vehicle skills: [driving] {
 		proba_respect_priorities <- 0.75 + rnd(0.24);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
+		proba_block_node <- 0.0;
 		
 	}
 
@@ -574,10 +575,11 @@ species road_node skills: [intersection_skill, fipa] {
 	
 	
 	
-	reflex congestion_ask_your_neighbor when:flip(0.05) {
+	reflex congestion_ask_your_neighbor when:flip(0.1) {
 		loop i over: roads_out{
 			//write road(i).segment_lengths;
-			if sum(collect(road(i).all_agents where (!dead(each) and each!=nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.9{
+			if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.8{
+						write "Richiesta per "+ road(i).target_node;
 						do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
 					//write i;
 			}
@@ -648,8 +650,10 @@ species road_node skills: [intersection_skill, fipa] {
 					do switch_state;
 					loop j over: proposes{
 						if road(j.contents) in roads_in_even{
+							write "Richiesta accettata";
 							do accept_proposal message: j contents: ['OK!'] ;
 						}else{
+							write "Richiesta accettata";
 							do reject_proposal message: j contents: ['No'] ;
 						}
 					}
