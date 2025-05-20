@@ -172,26 +172,26 @@ global {
 				
 				add i.roads_in_even to: i.stop ;
 			}
-			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
+			// write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
 		}
 		// Pulizia grandi incroci
 		loop i over: road_node {
 			if i.linked_count = 0 and i.is_traffic_light {
-				write "processing node #" + i.index ;
+				// write "processing node #" + i.index ;
 				nodi_belli <- union(i.roads_in collect road(each).source_node, i.roads_out collect road(each).target_node) ;
 				nodi_belli <- nodi_belli sort_by (-atan2((road_node(each).location.y-i.location.y) , (road_node(each).location.x-i.location.x))) ;
-				write "0" ;
+				// write "0" ;
 				if nodi_belli count (each distance_to i < 25 #m) = 3 and length(nodi_belli) = 4 {
-					write "1" ;
+					// write "1" ;
 					nodo_lontano <- nodi_belli where (each distance_to i > 25 #m) at 0 ;
 					if i.ordered_road_list at (nodi_belli index_of nodo_lontano) in i.roads_in {
-						write "2" ;
+						// write "2" ;
 						nodo_alfano <- nodi_belli at ((nodi_belli index_of nodo_lontano + 2) mod 4) ;
-						write "3" ;
+						// write "3" ;
 						do pulizia(nodo_alfano) ;
-						write "4" ;
+						// write "4" ;
 						if length(nodo_alfano.ordered_road_list) = 4 and nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
-							write "5" ;
+							// write "5" ;
 							nodo_alfano <- road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node ;
 							do pulizia(nodo_alfano) ;
 							if nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
@@ -246,7 +246,7 @@ global {
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
 		if cycle mod 3600 #seconds = 0 {
-			write "cycle " + cycle ;
+			// write "cycle " + cycle ;
 			add mean((road where road(each).is_main_road) collect road(each).car_count_per_hour) to: car_counts ;
 		}
 	}
@@ -500,7 +500,7 @@ species road_node skills: [intersection_skill, fipa] {
 	int red_time <- int(switch_time / step #s) ;
 	int yellow_time <- int(5 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
-	rgb color <- #green ;
+	rgb color <- #red ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
@@ -747,7 +747,7 @@ species road_node skills: [intersection_skill, fipa] {
 	aspect default {
 		if (is_traffic_light) {
 			//	disegno un triangolo del colore del semaforo orientato verso la prima strada in ingresso
-			draw triangle(7) rotate: towards(location,roads_in[0].location) + 180 color: color ;
+			draw triangle(7) rotate: towards(location,roads_in[0].location) - 90 color: color ;
 		} else {
 			draw circle(1) color: #black ;
 		}
