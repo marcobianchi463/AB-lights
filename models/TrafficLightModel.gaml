@@ -160,13 +160,19 @@ global {
 					}
 				}else{
 					loop j from:0 to:length(i.ordered_road_list)-1 step:2{
-						if i.ordered_road_list[j] in i.roads_in{
-							add i.ordered_road_list[j] to: i.roads_in_even ;
+						if i.ordered_road_list[j] in i.roads_in {
+							if road(i.ordered_road_list[j]).length>20{
+								
+								add i.ordered_road_list[j] to: i.roads_in_even ;
+							}
 						}
 					}
 					loop j from:1 to:length(i.ordered_road_list)-1 step:2{
 						if i.ordered_road_list[j] in i.roads_in{
-							add i.ordered_road_list[j] to: i.roads_in_odd ;
+							if road(i.ordered_road_list[j]).length>20{
+								add i.ordered_road_list[j] to: i.roads_in_odd ;
+							}
+							
 						}
 					}
 				}
@@ -176,7 +182,7 @@ global {
 			// write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
 		}
 		// Pulizia grandi incroci
-		if !godly_g {
+		if true {
 			loop i over: road_node {
 				if i.linked_count = 0 and i.is_traffic_light {
 					// write "processing node #" + i.index ;
@@ -517,6 +523,8 @@ species road_node skills: [intersection_skill, fipa] {
 	//Godly_g variables
 	float roads_in_even_weight <-0.0;
 	float roads_in_odd_weight <- 0.0;
+	bool switching<-false;
+	int yellow_counter;
 	
 	
 	init{
@@ -647,7 +655,8 @@ species road_node skills: [intersection_skill, fipa] {
 			//15 è tempo min prima di switch da parametrizzare
 			if timer > 15 {
 				if road_even_ok and roads_in_odd_weight > roads_in_even_weight +tolerance{
-					do switch_state;
+					//do switch_state;
+					switching<-true;
 					loop j over: proposes{
 						if road(j.contents) in roads_in_even{
 							write "Richiesta accettata";
@@ -658,7 +667,8 @@ species road_node skills: [intersection_skill, fipa] {
 						}
 					}
 				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
-					do switch_state;
+					//do switch_state;
+					switching<-true;
 					loop j over: proposes{
 						if road(j.contents) in roads_in_odd{
 							do accept_proposal message: j contents: ['OK!'] ;
@@ -668,11 +678,23 @@ species road_node skills: [intersection_skill, fipa] {
 					}
 				//Max timer
 				}else if timer > 150 {
-					do switch_state;
+					//do switch_state;
+					switching<-true;
 					loop j over: proposes {do accept_proposal message: j contents: ['OK!'] ;}
 				}
 				
 				
+			}
+			
+			
+			if switching = true{
+				yellow_counter<-yellow_counter+1;
+				stop <- union(roads_in_even, roads_in_odd) ;
+				if yellow_counter >5 {
+					yellow_counter <- 0;
+					switching<-false;
+					do switch_state;
+				}
 			}
 			
 		}
