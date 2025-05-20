@@ -25,9 +25,9 @@ global {
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
-	bool godly_g <- false;
+	bool godly_g <- true;
 	bool intelligent_g <- false ;
-	bool stupid_g <- true ;
+	bool stupid_g <- false ;
 	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
@@ -59,7 +59,7 @@ global {
 	list<int> car_counts <- [] ;
 
 	init {
-		// seed <- 1.0 ;
+		seed <- 1.0 ;
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
@@ -80,16 +80,17 @@ global {
 					match "residential" {maxspeed <- 30 #km / #h ; is_main_road <- false ;}
 				}
 				if oneway !="yes"{
-					
-						create road {
-							num_lanes <- myself.num_lanes ;
-		                    shape <- polyline(reverse(myself.shape.points)) ;
-		                    
-		                    maxspeed <- myself.maxspeed ;
-							length <- myself.length ;
-		                    linked_road <- myself ;
-		                    myself.linked_road <- self ;
-						}					
+					is_linked <- true ;
+					create road {
+						num_lanes <- myself.num_lanes ;
+						shape <- polyline(reverse(myself.shape.points)) ;
+						
+						maxspeed <- myself.maxspeed ;
+						length <- myself.length ;
+						linked_road <- myself ;
+						myself.linked_road <- self ;
+						is_linked <- true ;
+					}					
 					
 				}
 			}
@@ -175,32 +176,32 @@ global {
 			// write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
 		}
 		// Pulizia grandi incroci
-		loop i over: road_node {
-			if i.linked_count = 0 and i.is_traffic_light {
-				// write "processing node #" + i.index ;
-				nodi_belli <- union(i.roads_in collect road(each).source_node, i.roads_out collect road(each).target_node) ;
-				nodi_belli <- nodi_belli sort_by (-atan2((road_node(each).location.y-i.location.y) , (road_node(each).location.x-i.location.x))) ;
-				// write "0" ;
-				if nodi_belli count (each distance_to i < 25 #m) = 3 and length(nodi_belli) = 4 {
-					// write "1" ;
-					nodo_lontano <- nodi_belli where (each distance_to i > 25 #m) at 0 ;
-					if i.ordered_road_list at (nodi_belli index_of nodo_lontano) in i.roads_in {
-						// write "2" ;
-						nodo_alfano <- nodi_belli at ((nodi_belli index_of nodo_lontano + 2) mod 4) ;
-						// write "3" ;
-						do pulizia(nodo_alfano) ;
-						// write "4" ;
-						if length(nodo_alfano.ordered_road_list) = 4 and nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
-							// write "5" ;
-							nodo_alfano <- road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node ;
+		if !godly_g {
+			loop i over: road_node {
+				if i.linked_count = 0 and i.is_traffic_light {
+					// write "processing node #" + i.index ;
+					nodi_belli <- list<road_node>(union(i.roads_in collect road(each).source_node, i.roads_out collect road(each).target_node)) ;
+					nodi_belli <- nodi_belli sort_by (-atan2((road_node(each).location.y-i.location.y) , (road_node(each).location.x-i.location.x))) ;
+					// write "0" ;
+					if nodi_belli count (each distance_to i < 25 #m) = 3 and length(nodi_belli) = 4 {
+						// write "1" ;
+						nodo_lontano <- nodi_belli where (each distance_to i > 25 #m) at 0 ;
+						if i.ordered_road_list at (nodi_belli index_of nodo_lontano) in i.roads_in {
+							// write "2" ;
+							nodo_alfano <- nodi_belli at ((nodi_belli index_of nodo_lontano + 2) mod 4) ;
+							// write "3" ;
 							do pulizia(nodo_alfano) ;
-							if nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
-								nodo_alfano <- road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node ;
+							// write "4" ;
+							if length(nodo_alfano.ordered_road_list) = 4 and nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+								// write "5" ;
+								nodo_alfano <- road_node(road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node) ;
 								do pulizia(nodo_alfano) ;
+								if nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+									nodo_alfano <- road_node(road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node) ;
+									do pulizia(nodo_alfano) ;
+								}
 							}
 						}
-						// ask road(i.ordered_road_list at ((nodi_belli index_of nodo_lontano + 1) mod 4)) {do kys();}
-						// ask road(i.ordered_road_list at ((nodi_belli index_of nodo_lontano + 1) mod 4)) {do kys();}
 					}
 				}
 			}
@@ -295,19 +296,20 @@ species vehicle skills: [driving] {
 		}
 	}
 	
-	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil{
+	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil and next_road != nil {
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
 		right_side_driving <- true ;
 		acc_bias <- 1.0 ;
+		allowed_lanes <- [] ;
 		if (n > 2){
-			if (road(current_road).oneway != "yes"){
-				i_in <- road_node(current_target).ordered_road_list
-				index_of road(road(current_road).linked_road) ;
-			}else{
-				i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
-			}
-			i_out <- road_node(current_target).ordered_road_list index_of road(next_road) ;
+			// if (road(current_road).linked_road != "yes"){
+			// 	i_in <- road_node(current_target).ordered_road_list
+			// 	index_of road(road(current_road).linked_road) ;
+			// }else{
+			i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
+			// }
+			i_out <- road_node(current_target).ordered_road_list index_of (road(next_road).is_linked ? road(next_road).linked_road : road(next_road)) ;
 			left_turn <- mod(i_out-i_in+n,n) > min(2,n/2) ? true : false ;
 			if (left_turn and current_road != nil)
 			{
@@ -463,6 +465,7 @@ species road skills: [road_skill] {
 	int car_count_per_hour<-0;
 	bool reset_car_count <- false;
 	bool is_main_road ;
+	bool is_linked <- false ;
 
 	
 	aspect base {
