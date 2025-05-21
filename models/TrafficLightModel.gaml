@@ -52,6 +52,7 @@ global {
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
+	graph start_graph ;
 
 	list<road_node> nodi_belli <- [] ;
 	road_node nodo_lontano <- nil ;
@@ -211,13 +212,17 @@ global {
 		}
 		weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
+		start_graph <- as_driving_graph (road, road_node) with_weights (road as_map (each::(each.length/each.maxspeed*speed_weight))) ;
 		
 		// INIZIALIZZAZIONE VEICOLI
 
 		create car number: nb_vehicles {
-			location <- one_of(road_node).location ;
+			start_node <- one_of(road_node) ;
+			location <- start_node.location ;
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
+			goal_node <- one_of(road_node) ;
+			current_path <- compute_path (graph: the_graph, target: goal_node) ;
 		}
 		create bus number: nb_bus_lines {
 			max_speed <- 50 #km / #h;
@@ -378,7 +383,12 @@ species car parent:vehicle{
 	list<path> a_path_list ;
 	list<road> edge_list ;
 	list<road_node> node_list ;
-	
+
+	road_node start_node ;
+	road_node goal_node ;
+	float ideal_distance ;
+	float delta ;
+	bool must_compute <- true ;
 	float offset_distance<-0.2;
 	init{
 		vehicle_length <- 3.8 #m ;
@@ -397,14 +407,24 @@ species car parent:vehicle{
 		if (length(car) < (1.0 - osc_amp * cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				location <- one_of(road_node).location ;
-				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
+				start_node <- one_of(road_node) ;
+				location <- start_node.location ;
+				goal_node <- one_of(road_node) ;
+				current_path <- compute_path (graph: the_graph, target: goal_node) ;
 				max_speed <- v_maxspeed #km / #h;
 				vehicle_length <- 3.0 #m ;
 			}
 		}
 		n_trips <- n_trips + 1 ;
 		do die ;
+	}
+
+	reflex compute_delta when: must_compute {
+		must_compute <- false ;
+		current_path <- compute_path (graph: start_graph, target: goal_node) ;
+		ideal_distance <- sum(current_path.edges collect road(each).length);
+		current_path <- compute_path (graph: the_graph, target: goal_node) ;
+		delta <- sum(current_path.edges collect road(each).length) - ideal_distance ;
 	}
 }
 
