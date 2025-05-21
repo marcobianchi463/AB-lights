@@ -42,6 +42,7 @@ global {
 	float bus_factor<-200.0;
 	float car_factor<-1.0;
 	float ask_factor<-150.0;
+	int ask_threshold<-200;
 	
 
 	// variabili per la gestione dei semafori
@@ -162,7 +163,7 @@ global {
 				}else{
 					loop j from:0 to:length(i.ordered_road_list)-1 step:2{
 						if i.ordered_road_list[j] in i.roads_in {
-							if road(i.ordered_road_list[j]).length>20{
+							if road(i.ordered_road_list[j]).length>30{
 								
 								add i.ordered_road_list[j] to: i.roads_in_even ;
 							}
@@ -541,6 +542,7 @@ species road_node skills: [intersection_skill, fipa] {
 	float roads_in_odd_weight <- 0.0;
 	bool switching<-false;
 	int yellow_counter;
+	int inbound_vehicles<-0;
 	
 	
 	init{
@@ -600,12 +602,18 @@ species road_node skills: [intersection_skill, fipa] {
 	
 	
 	reflex congestion_ask_your_neighbor when:flip(0.1) {
-		loop i over: roads_out{
-			//write road(i).segment_lengths;
-			if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.8{
-						write "Richiesta per "+ road(i).target_node;
-						do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
-					//write i;
+		inbound_vehicles<-0;
+		loop j over: roads_in{
+			inbound_vehicles <- inbound_vehicles + length(road(j).all_agents);
+		}
+		if inbound_vehicles > ask_threshold{
+			loop i over: roads_out{
+				
+				if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.8{
+							write "Richiesta per "+ road(i).target_node;
+							do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
+						//write i;
+				}
 			}
 		}
 	}
@@ -674,11 +682,11 @@ species road_node skills: [intersection_skill, fipa] {
 					//do switch_state;
 					switching<-true;
 					loop j over: proposes{
-						if road(j.contents) in roads_in_even{
+						if road(j.contents) in roads_in_odd{
 							write "Richiesta accettata";
 							do accept_proposal message: j contents: ['OK!'] ;
 						}else{
-							write "Richiesta accettata";
+							write "Richiesta rejected";
 							do reject_proposal message: j contents: ['No'] ;
 						}
 					}
@@ -686,7 +694,7 @@ species road_node skills: [intersection_skill, fipa] {
 					//do switch_state;
 					switching<-true;
 					loop j over: proposes{
-						if road(j.contents) in roads_in_odd{
+						if road(j.contents) in roads_in_even{
 							do accept_proposal message: j contents: ['OK!'] ;
 						}else{
 							do reject_proposal message: j contents: ['No'] ;
