@@ -164,18 +164,12 @@ global {
 				}else{
 					loop j from:0 to:length(i.ordered_road_list)-1 step:2{
 						if i.ordered_road_list[j] in i.roads_in {
-							if road(i.ordered_road_list[j]).length>30{
-								
-								add i.ordered_road_list[j] to: i.roads_in_even ;
-							}
+							add i.ordered_road_list[j] to: i.roads_in_even ;
 						}
 					}
 					loop j from:1 to:length(i.ordered_road_list)-1 step:2{
 						if i.ordered_road_list[j] in i.roads_in{
-							if road(i.ordered_road_list[j]).length>20{
-								add i.ordered_road_list[j] to: i.roads_in_odd ;
-							}
-							
+							add i.ordered_road_list[j] to: i.roads_in_odd ;
 						}
 					}
 				}
@@ -696,7 +690,7 @@ species road_node skills: [intersection_skill, fipa] {
 							write "Richiesta accettata";
 						} else {
 							do reject_proposal message: j contents: ['No'] ;
-							write "Richiesta rejected";
+							write "Richiesta rejected" ;
 						}
 					}
 				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
