@@ -10,14 +10,15 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium4.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fiume.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium5.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fium5.shp") ;
 //	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
 //	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 3500 ;
+	int nb_vehicles <- 4200 ;
+	int osc_amp <- 0 ;
 	int nb_bus_lines <- 3 ;
 	int nb_bus_min <- 2 ;
 	list<road_node> bus_destinations <- [] ;
@@ -42,7 +43,7 @@ global {
 	float bus_factor<-200.0;
 	float car_factor<-1.0;
 	float ask_factor<-150.0;
-	int ask_threshold<-200;
+	int ask_threshold<-0;
 	
 
 	// variabili per la gestione dei semafori
@@ -399,7 +400,7 @@ species car parent:vehicle{
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
-		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
+		if (length(car) < (1.0 - osc_amp * cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
 				location <- one_of(road_node).location ;
@@ -601,18 +602,17 @@ species road_node skills: [intersection_skill, fipa] {
 	
 	
 	
-	reflex congestion_ask_your_neighbor when:flip(0.1) {
-		inbound_vehicles<-0;
-		loop j over: roads_in{
-			inbound_vehicles <- inbound_vehicles + length(road(j).all_agents);
+	reflex congestion_ask_your_neighbor when: flip(0.1) {
+		inbound_vehicles <- 0 ;
+		loop j over: roads_in {
+			inbound_vehicles <- inbound_vehicles + length(road(j).all_agents) ;
 		}
-		if inbound_vehicles > ask_threshold{
-			loop i over: roads_out{
-				
-				if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes *0.8{
-							write "Richiesta per "+ road(i).target_node;
-							do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
-						//write i;
+		if inbound_vehicles > ask_threshold {
+			loop i over: roads_out {
+				if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes * 0.8 {
+					write "Richiesta per "+ road(i).target_node;
+					do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
+					//write i;
 				}
 			}
 		}
@@ -681,23 +681,41 @@ species road_node skills: [intersection_skill, fipa] {
 				if road_even_ok and roads_in_odd_weight > roads_in_even_weight +tolerance{
 					//do switch_state;
 					switching<-true;
-					loop j over: proposes{
-						if road(j.contents) in roads_in_odd{
-							write "Richiesta accettata";
+					// loop j over: proposes{
+					// 	if road(j.contents) in roads_in_odd{
+					// 		write "Richiesta accettata";
+					// 		do accept_proposal message: j contents: ['OK!'] ;
+					// 	}else{
+					// 		write "Richiesta rejected";
+					// 		do reject_proposal message: j contents: ['No'] ;
+					// 	}
+					// }
+					loop j over: proposes {
+						if inter(road_node(j.sender).roads_out, roads_in_odd) != [] {
 							do accept_proposal message: j contents: ['OK!'] ;
-						}else{
-							write "Richiesta rejected";
+							write "Richiesta accettata";
+						} else {
 							do reject_proposal message: j contents: ['No'] ;
+							write "Richiesta rejected";
 						}
 					}
 				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
 					//do switch_state;
 					switching<-true;
-					loop j over: proposes{
-						if road(j.contents) in roads_in_even{
+					// loop j over: proposes{
+					// 	if road(j.contents) in roads_in_even{
+					// 		do accept_proposal message: j contents: ['OK!'] ;
+					// 	}else{
+					// 		do reject_proposal message: j contents: ['No'] ;
+					// 	}
+					// }
+					loop j over: proposes {
+						if inter(road_node(j.sender).roads_out, roads_in_even) != [] {
 							do accept_proposal message: j contents: ['OK!'] ;
-						}else{
+							write "Richiesta accettata";
+						} else {
 							do reject_proposal message: j contents: ['No'] ;
+							write "Richiesta rejected";
 						}
 					}
 				//Max timer
