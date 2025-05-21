@@ -57,6 +57,7 @@ global {
 
 	// variabili output
 	list<int> car_counts <- [] ;
+	float cumulative_acceleration <- 0.0 ;
 
 	init {
 		seed <- 1.0 ;
@@ -256,12 +257,21 @@ global {
 			// write "cycle " + cycle ;
 			add mean((road where road(each).is_main_road) collect road(each).car_count_per_hour) to: car_counts ;
 		}
+		cumulative_acceleration <- cumulative_acceleration + sum((car collect each.acceleration) where (each > 0.0)) ;
 	}
 	reflex update_graph when: car_weight > 0.0 and cycle mod 300 #seconds = 0 {
 		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m*length(each.all_agents)))) ;		
 		the_graph <- the_graph with_weights weight_map ;
 	}
 	action pulizia(road_node nodo){
+		loop j over: road_node(nodo).ordered_road_list {
+			if road(j).length < 20 #m {
+				road(j).no_prior <- true ;
+				if road(j).is_linked {
+					road(road(j).linked_road).no_prior <- true ;
+				}
+			}
+		}
 		nodo.stop <- [] ;
 		nodo.is_traffic_light <- false ;
 	}
@@ -336,6 +346,11 @@ species vehicle skills: [driving] {
 		}
 	}
 
+	reflex respecting_priorities when: current_road != nil {
+		if road(current_road).no_prior {proba_respect_priorities <- 0.0 ;}
+		else {proba_respect_priorities <- 0.75 + rnd(0.24) ;}
+	}
+
 	/*aspect default {
 	draw circle(dimension) color: color ;
 	}*/
@@ -372,7 +387,7 @@ species car parent:vehicle{
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_respect_priorities <- 0.05 + rnd(0.04);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
 		// proba_block_node <- 0.5;
@@ -473,6 +488,7 @@ species road skills: [road_skill] {
 	bool reset_car_count <- false;
 	bool is_main_road ;
 	bool is_linked <- false ;
+	bool no_prior <- false ;
 
 	
 	aspect base {
@@ -508,7 +524,7 @@ species road_node skills: [intersection_skill, fipa] {
 	int switch_time <- 60 + rnd(5) ;
 	int green_time <- int(switch_time / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
-	int yellow_time <- int(5 / step #s) ;
+	int yellow_time <- int(2 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #red ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
@@ -823,6 +839,7 @@ experiment TrafficLightModel type: gui {
 			species road_node aspect:default ;
 		}
 		monitor "Number of trips" value: n_trips ;
+		monitor "Integrated acceleration" value: cumulative_acceleration ;
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
 			chart "Number of vehicles" type: series size: {0.5,0.5} position: {0,0} {
 				data "number of cars" value: length(car) color: #red ;
@@ -830,17 +847,18 @@ experiment TrafficLightModel type: gui {
 			}
 			chart "Successful trips" type: series size: {0.5,0.5} position: {0,0.5} {
 				data "number of successful trips" value: trips at (length(trips) - 1) color: #green ;
-				data "ten second average variation" value: trips at (length(trips) - 1) - trips at 0
-				color: #purple use_second_y_axis: true ;
+				// data "ten second average variation" value: trips at (length(trips) - 1) - trips at 0
+				// color: #purple use_second_y_axis: true ;
+				data "normalized integrated acceleration" value: cumulative_acceleration / max(trips at (length(trips) - 1),0.001) color: #purple use_second_y_axis: true ;
 			}
          	chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0.5} {
 				data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
 				data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
-	     }
-	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
+			}
+			chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
 				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
 				data "Median_flux" value: mean((road where each.is_main_road) collect each.car_count_per_hour) use_second_y_axis: true ;
-	     }
+			}
          
 		}
 	}
