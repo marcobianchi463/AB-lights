@@ -33,6 +33,7 @@ global {
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
+	list<int> trip_times <- [] ;
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
 	float speed_weight <- 100.0 ;
@@ -260,7 +261,7 @@ global {
 		}
 		cumulative_acceleration <- cumulative_acceleration + sum((car collect each.acceleration) where (each > 0.0)) ;
 	}
-	reflex update_graph when: car_weight > 0.0 and cycle mod 300 #seconds = 0 {
+	reflex update_graph when: car_weight > 0.0 and cycle mod 60 #seconds = 0 {
 		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m*length(each.all_agents)))) ;		
 		the_graph <- the_graph with_weights weight_map ;
 	}
@@ -390,14 +391,16 @@ species car parent:vehicle{
 	float delta ;
 	bool must_compute <- true ;
 	float offset_distance<-0.2;
+
+	int trip_time <- 0 ;
+
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-		proba_respect_priorities <- 0.05 + rnd(0.04);
+		proba_respect_priorities <- 0.75 + rnd(0.24);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
-		// proba_block_node <- 0.5;
-		
+		trip_time <- cycle ;
 	}
 
 	reflex time_to_go when: final_target = nil {
@@ -416,6 +419,7 @@ species car parent:vehicle{
 			}
 		}
 		n_trips <- n_trips + 1 ;
+		add (cycle - trip_time) to: trip_times ;
 		do die ;
 	}
 
@@ -535,12 +539,12 @@ species road skills: [road_skill] {
 // specie road_node con intersection_skill
 species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
-	int timer ;
+	int timer <- int(rnd(0,5)) ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	int switch_time <- 60 + rnd(5) ;
+	int switch_time <- 60 ;
 	int green_time <- int(switch_time / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
-	int yellow_time <- int(2 / step #s) ;
+	int yellow_time <- int(5 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #red ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
@@ -883,7 +887,8 @@ experiment TrafficLightModel type: gui {
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
 			chart "Number of vehicles" type: series size: {0.5,0.5} position: {0,0} {
 				data "number of cars" value: length(car) color: #red ;
-				data "number of buses" value: length(bus) color: #blue ;
+				// data "number of buses" value: length(bus) color: #blue ;
+				data "Current average delta" value: mean(car collect each.delta) color: #blue use_second_y_axis: true ; 
 			}
 			chart "Successful trips" type: series size: {0.5,0.5} position: {0,0.5} {
 				data "number of successful trips" value: trips at (length(trips) - 1) color: #green ;
