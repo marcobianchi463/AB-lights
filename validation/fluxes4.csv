@@ -1,2 +1,2 @@
-mean((road where each.is_main_road) collect each.car_count_per_hour)
-26.535550458715598
+cycle,mean_of(simulations,mean((road where each.is_main_road) collect each.car_count_per_hour))
+3600,26.535550458715598

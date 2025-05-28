@@ -19,8 +19,8 @@ global {
 	float step <- 1.0 #second ;
 	int nb_vehicles <- 4200 ;
 	int osc_amp <- 0 ;
-	int nb_bus_lines <- 3 ;
-	int nb_bus_min <- 2 ;
+	int nb_bus_lines <- 10 ;
+	int nb_bus_min <- 10 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
@@ -37,6 +37,7 @@ global {
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
 	float speed_weight <- 100.0 ;
+	point validation_center <- {3644,2212};
 	
 	bool left_lane_choice <- true ;
 	
@@ -91,6 +92,7 @@ global {
 					match "tertiary" {maxspeed <- 50 #km / #h ; is_main_road <- false ;}
 					match "residential" {maxspeed <- 30 #km / #h ; is_main_road <- false ;}
 				}
+				
 				if oneway !="yes"{
 					is_linked <- true ;
 					create road {
@@ -307,14 +309,15 @@ species vehicle skills: [driving] {
 	
 	reflex move when: final_target != nil {
 		
-		road_now <- road(current_road) ;
+		
 		do drive ;
 	}
 	
-	reflex increment_car_count_of_road when: true{
-		if(road_now != current_road){
-			road(current_road).car_count_per_hour <- road(current_road).car_count_per_hour +1;
-		}
+	reflex increment_car_count_of_road when: road_now != current_road{
+		
+		road_now <- road(current_road) ;
+		road(current_road).car_count_per_hour <- road(current_road).car_count_per_hour +1;
+	
 	}
 	
 	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil and next_road != nil {
@@ -522,6 +525,18 @@ species road skills: [road_skill] {
 			length <- length+ float(i) ;
 		}
 	}
+	reflex check_main_road when:cycle=1{
+		if source_node = nil or target_node = nil{
+			is_main_road<-false;
+		}
+	}
+	reflex color_road when:true{
+		if distance_to(location,validation_center)<1500 and is_main_road{
+			color<-#red;
+		}else{
+			color<-#blue;
+		}
+	}
 	// reflex check_reset when: reset_car_count = true {
 	// 	car_count_per_hour<-0;
 	// 	reset_car_count<-false;
@@ -543,10 +558,10 @@ species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
 	int timer <- int(rnd(0,5)) ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	int switch_time <- 60 ;
+	int switch_time <- 45 ;
 	int green_time <- int(switch_time / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
-	int yellow_time <- int(5 / step #s) ;
+	int yellow_time <- int(3 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
 	rgb color <- #red ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
@@ -904,7 +919,7 @@ experiment TrafficLightModel type: gui {
 			}
 			chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
 				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
-				data "Median_flux" value: mean((road where each.is_main_road) collect each.car_count_per_hour) use_second_y_axis: true ;
+				data "Median_flux" value: mean((road where (each.is_main_road and distance_to(each.location,validation_center)<1500)) collect each.car_count_per_hour) use_second_y_axis: true ;
 			}
          
 		}
@@ -983,12 +998,12 @@ experiment speed_weight_variation type: batch until: (cycle = 6*3600) keep_seed:
 	}
 }
 
-experiment validation_flux type: batch repeat: 3 until: (cycle = 3600) keep_seed: false {
+experiment validation_flux type: batch repeat: 1 until: (cycle = 3600) keep_seed: false {
 	parameter "Car number" var: nb_vehicles among: vehicle_on_map_per_hour unit: "vehicle per hour";
 	method exploration;
 	int cpt<-0;
 	reflex save_flux {
-	    save mean((road where each.is_main_road) collect each.car_count_per_hour) format:"csv" to:"../validation/fluxes" + cpt + ".csv" ;
+	    save [cycle,simulations mean_of mean((road where each.is_main_road) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes" + cpt + ".csv" ;
 	    cpt <- cpt + 1;
     }
 }
