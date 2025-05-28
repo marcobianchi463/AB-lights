@@ -26,9 +26,9 @@ global {
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
-	bool godly_g <- true;
+	bool godly_g <- false;
 	bool intelligent_g <- false ;
-	bool stupid_g <- false ;
+	bool stupid_g <- true ;
 	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
@@ -62,6 +62,13 @@ global {
 	// variabili output
 	list<int> car_counts <- [] ;
 	float cumulative_acceleration <- 0.0 ;
+	
+	//Experiment utilities
+	
+	list<int> vehicles_per_hour_turin <- [2200,1500,900,650,1000,2800,6000,14100,18800,16200,14300,12600,12700,12600,13700,14000,15200,17000,17200,15000,10500,6800,5800,4800];
+	int map_size <- 35;
+	int turin_size <- 130;
+	list<int> vehicle_on_map_per_hour <- vehicles_per_hour_turin collect (each * map_size / turin_size);
 
 	init {
 		seed <- 1.0 ;
@@ -109,13 +116,8 @@ global {
 		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
 		int rndnum <- rnd(100) ;
 		loop i over: road_node{// INIZIALIZZAZIONE SEMAFORI
-			//write i.index ;
-			//write i.name ;
-			
 			//conto quante strade a doppio senso ci sono nel nodo
 			loop j over: i.roads_in {
-				// a quanto pare loopare su una lista di agenti strada non è abbastanza
-				// per far capire che j è una strada 
 				if (road(j).linked_road != nil) {
 					i.linked_count <- i.linked_count + 1 ;
 				}
@@ -971,7 +973,7 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 	}
 }
 
-experiment validation_flux type: batch until: (cycle = 6*3600) keep_seed: true {
+experiment speed_weight_variation type: batch until: (cycle = 6*3600) keep_seed: true {
 	parameter "Speed weight" var: speed_weight min: 50.0 max: 100.0 step: 50.0 ;
 	method exploration ;
 	reflex save_trips {
@@ -979,4 +981,14 @@ experiment validation_flux type: batch until: (cycle = 6*3600) keep_seed: true {
 			save [i.speed_weight, last (i.trips), car_counts] format: "csv" to: "../results/validation_flux"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
 		}
 	}
+}
+
+experiment validation_flux type: batch repeat: 3 until: (cycle = 3600) keep_seed: false {
+	parameter "Car number" var: nb_vehicles among: vehicle_on_map_per_hour unit: "vehicle per hour";
+	method exploration;
+	int cpt<-0;
+	reflex save_flux {
+	    save mean((road where each.is_main_road) collect each.car_count_per_hour) format:"csv" to:"../validation/fluxes" + cpt + ".csv" ;
+	    cpt <- cpt + 1;
+    }
 }

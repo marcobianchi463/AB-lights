@@ -1,0 +1,2 @@
+mean((road where each.is_main_road) collect each.car_count_per_hour)
+56.4151376146789
