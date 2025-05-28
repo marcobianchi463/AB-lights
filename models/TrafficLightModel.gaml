@@ -10,8 +10,8 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium5.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fium5.shp") ;
+	file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
 //	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
 //	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
@@ -37,7 +37,9 @@ global {
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
 	float speed_weight <- 100.0 ;
-	point validation_center <- {3644,2212};
+	// point validation_center <- {3644,2212};
+	point validation_center <- shape.location ;
+	float validation_radius <- sqrt(shape.area/2) ;
 	
 	bool left_lane_choice <- true ;
 	
@@ -531,7 +533,7 @@ species road skills: [road_skill] {
 		}
 	}
 	reflex color_road when:true{
-		if distance_to(location,validation_center)<1500 and is_main_road{
+		if distance_to(location,validation_center)<validation_radius and is_main_road{
 			color<-#red;
 		}else{
 			color<-#blue;
@@ -919,7 +921,7 @@ experiment TrafficLightModel type: gui {
 			}
 			chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
 				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
-				data "Median_flux" value: mean((road where (each.is_main_road and distance_to(each.location,validation_center)<1500)) collect each.car_count_per_hour) use_second_y_axis: true ;
+				data "Median_flux" value: mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour) use_second_y_axis: true ;
 			}
          
 		}
