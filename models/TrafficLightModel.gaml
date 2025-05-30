@@ -37,9 +37,8 @@ global {
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
 	float speed_weight <- 100.0 ;
-	// point validation_center <- {3644,2212};
 	point validation_center <- shape.location ;
-	float validation_radius <- sqrt(shape.area/2) ;
+	float validation_radius <- sqrt(shape.area)/4 ;
 	
 	bool left_lane_choice <- true ;
 	
@@ -58,6 +57,11 @@ global {
 	graph the_graph ;
 	graph start_graph ;
 
+	// variabili per i trip across the map
+	list<road_node> nodi_periferici <- [] ;
+	float across_the_map_trip <- 0.01 ;
+
+	// variabili per la pulizia della rete
 	list<road_node> nodi_belli <- [] ;
 	road_node nodo_lontano <- nil ;
 	road_node nodo_alfano <- nil ;
@@ -222,13 +226,20 @@ global {
 		start_graph <- as_driving_graph (road, road_node) with_weights (road as_map (each::(each.length/each.maxspeed*speed_weight))) ;
 		
 		// INIZIALIZZAZIONE VEICOLI
-
+		nodi_periferici <- nodi_periferici where !(each.is_traffic_light = false) ;
+		nodi_periferici <- road_node where (true in collect(road_node(each).roads_out, road(each).is_main_road)) ;
+		nodi_periferici <- nodi_periferici where ((each.location distance_to validation_center) > validation_radius) ;
 		create car number: nb_vehicles {
-			start_node <- one_of(road_node) ;
+			if flip(across_the_map_trip) {
+				start_node <- one_of(nodi_periferici) ;
+				goal_node <- one_of(nodi_periferici) ;
+			} else {
+				start_node <- one_of(road_node) ;
+				goal_node <- one_of(road_node) ;
+			}
 			location <- start_node.location ;
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
-			goal_node <- one_of(road_node) ;
 			current_path <- compute_path (graph: the_graph, target: goal_node) ;
 		}
 		create bus number: nb_bus_lines {
@@ -417,9 +428,14 @@ species car parent:vehicle{
 		if (length(car) < (1.0 - osc_amp * cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				start_node <- one_of(road_node) ;
+				if flip(across_the_map_trip) {
+					start_node <- one_of(nodi_periferici) ;
+					goal_node <- one_of(nodi_periferici) ;
+				}else{
+					start_node <- one_of(road_node) ;
+					goal_node <- one_of(road_node) ;
+				}
 				location <- start_node.location ;
-				goal_node <- one_of(road_node) ;
 				current_path <- compute_path (graph: the_graph, target: goal_node) ;
 				max_speed <- v_maxspeed #km / #h;
 				vehicle_length <- 3.0 #m ;
