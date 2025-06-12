@@ -10,10 +10,10 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
-//	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
-//	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
+//	file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
+//	file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium5.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fium5.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
@@ -226,8 +226,8 @@ global {
 		start_graph <- as_driving_graph (road, road_node) with_weights (road as_map (each::(each.length/each.maxspeed*speed_weight))) ;
 		
 		// INIZIALIZZAZIONE VEICOLI
-		nodi_periferici <- nodi_periferici where !(each.is_traffic_light = false) ;
-		nodi_periferici <- road_node where (true in collect(road_node(each).roads_out, road(each).is_main_road)) ;
+		nodi_periferici <- road_node where !(each.is_traffic_light = false) ;
+		nodi_periferici <- nodi_periferici where (true in collect(road_node(each).roads_out, road(each).is_main_road)) ;
 		nodi_periferici <- nodi_periferici where ((each.location distance_to validation_center) > validation_radius) ;
 		create car number: nb_vehicles {
 			if flip(across_the_map_trip) {
