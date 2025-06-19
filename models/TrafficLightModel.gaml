@@ -1036,7 +1036,7 @@ experiment validation_flux type: batch  keep_seed: false until: (cycle = 3600) {
 	}
 	reflex save_flux {
 		ask simulations {
-			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes.csv" rewrite:false;
+			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes_revised.csv" rewrite:false;
 	    }
 	}
 }
