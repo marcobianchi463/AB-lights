@@ -10,14 +10,14 @@ model TrafficLightModel
 global {
 	/** Insert the global definitions, variables and actions here */
 	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
-	file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
-//	file shape_file_roads <- file("../includes/qgis/mappagrande/roads.shp") ;
-//	file shape_file_nodes <- file("../includes/qgis/mappagrande/junctions.shp") ;
+	//file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
+	//file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 4200 ;
+	int nb_vehicles <- 4500 ;
 	int osc_amp <- 0 ;
 	int nb_bus_lines <- 10 ;
 	int nb_bus_min <- 10 ;
@@ -41,6 +41,8 @@ global {
 	float validation_radius <- sqrt(shape.area)/4 ;
 	
 	bool left_lane_choice <- true ;
+	bool random_seed <- true;
+	float fixed_seed<-1.0;
 	
 	//Godly_g weights
 	float bus_factor<-200.0;
@@ -59,7 +61,7 @@ global {
 
 	// variabili per i trip across the map
 	list<road_node> nodi_periferici <- [] ;
-	float across_the_map_trip <- 0.01 ;
+	float proba_outside_map_trip <- 0.2 ;
 
 	// variabili per la pulizia della rete
 	list<road_node> nodi_belli <- [] ;
@@ -76,9 +78,12 @@ global {
 	int map_size <- 35;
 	int turin_size <- 130;
 	list<int> vehicle_on_map_per_hour <- vehicles_per_hour_turin collect (each * map_size / turin_size);
-
+	
 	init {
-		seed <- 1.0 ;
+		if not random_seed{
+			seed <- fixed_seed ;
+		}
+		
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
@@ -226,15 +231,18 @@ global {
 		start_graph <- as_driving_graph (road, road_node) with_weights (road as_map (each::(each.length/each.maxspeed*speed_weight))) ;
 		
 		// INIZIALIZZAZIONE VEICOLI
-		nodi_periferici <- nodi_periferici where !(each.is_traffic_light = false) ;
 		nodi_periferici <- road_node where (true in collect(road_node(each).roads_out, road(each).is_main_road)) ;
+		nodi_periferici <- nodi_periferici where !(each.is_traffic_light = false) ;
 		nodi_periferici <- nodi_periferici where ((each.location distance_to validation_center) > validation_radius) ;
 		create car number: nb_vehicles {
-			if flip(across_the_map_trip) {
+			if flip(proba_outside_map_trip) {
 				start_node <- one_of(nodi_periferici) ;
-				goal_node <- one_of(nodi_periferici) ;
 			} else {
 				start_node <- one_of(road_node) ;
+			}
+			if flip(proba_outside_map_trip){
+				goal_node <- one_of(nodi_periferici) ;
+			}else{
 				goal_node <- one_of(road_node) ;
 			}
 			location <- start_node.location ;
@@ -428,11 +436,14 @@ species car parent:vehicle{
 		if (length(car) < (1.0 - osc_amp * cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				if flip(across_the_map_trip) {
+				if flip(proba_outside_map_trip) {
 					start_node <- one_of(nodi_periferici) ;
+				}else{
+					start_node <- one_of(road_node) ;	
+				}
+				if flip(proba_outside_map_trip){
 					goal_node <- one_of(nodi_periferici) ;
 				}else{
-					start_node <- one_of(road_node) ;
 					goal_node <- one_of(road_node) ;
 				}
 				location <- start_node.location ;
@@ -896,6 +907,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Number of bus lines:" var: nb_bus_lines category: "Vehicles";
 	parameter "Minimum number of buses:" var: nb_bus_min category: "Vehicles";
 	parameter "Maximum speed:" var: v_maxspeed category: "Vehicles";
+	parameter "Probaility for trip to go or start outside map:" var: proba_outside_map_trip category:"Vehicles";
 	parameter "Godly traffic lights:" var:godly_g category: "Intersection";
 	parameter "Intelligent traffic lights:" var:intelligent_g category: "Intersection";
 	parameter "Stupid traffic lights:" var:stupid_g category: "Intersection";
@@ -1016,12 +1028,15 @@ experiment speed_weight_variation type: batch until: (cycle = 6*3600) keep_seed:
 	}
 }
 
-experiment validation_flux type: batch repeat: 1 until: (cycle = 3600) keep_seed: false {
+experiment validation_flux type: batch  keep_seed: false until: (cycle = 3600) {
 	parameter "Car number" var: nb_vehicles among: vehicle_on_map_per_hour unit: "vehicle per hour";
 	method exploration;
-	int cpt<-0;
+	init{
+		seed<-rnd(1.0);
+	}
 	reflex save_flux {
-	    save [cycle,simulations mean_of mean((road where each.is_main_road) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes" + cpt + ".csv" ;
-	    cpt <- cpt + 1;
-    }
+		ask simulations {
+			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes.csv" rewrite:false;
+	    }
+	}
 }
