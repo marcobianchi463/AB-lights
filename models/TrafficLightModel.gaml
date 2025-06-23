@@ -36,9 +36,9 @@ global {
 	list<int> trip_times <- [] ;
 	float proba_rerouting <- 0.0 ;
 	float car_weight <- 100.0 ;
-	float speed_weight <- 100.0 ;
+	float speed_weight <- 0.4 ;
 	point validation_center <- shape.location ;
-	float validation_radius <- sqrt(shape.area)/4 ;
+	float validation_radius <- sqrt(shape.area)/5 ;
 	
 	bool left_lane_choice <- true ;
 	bool random_seed <- true;
@@ -61,7 +61,7 @@ global {
 
 	// variabili per i trip across the map
 	list<road_node> nodi_periferici <- [] ;
-	float proba_outside_map_trip <- 0.2 ;
+	float proba_outside_map_trip <- 0.01 ;
 
 	// variabili per la pulizia della rete
 	list<road_node> nodi_belli <- [] ;
@@ -122,7 +122,8 @@ global {
 
 		create road_node from: shape_file_nodes ;
 		
-		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
+		//map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
+		map<road,float> weight_map <- road as_map (each::(each.maxspeed*each.length*speed_weight - car_weight * 3.5#m * length(each.all_agents)* length(each.all_agents)/each.length * each.num_lanes )) ;
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		// INIZIALIZZAZIONE SEMAFORI
@@ -588,7 +589,7 @@ species road_node skills: [intersection_skill, fipa] {
 	int timer <- int(rnd(0,5)) ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
 	int switch_time <- 45 ;
-	int green_time <- int(switch_time / step #s) ;
+	int green_time <- int(switch_time  / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
 	int yellow_time <- int(3 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
