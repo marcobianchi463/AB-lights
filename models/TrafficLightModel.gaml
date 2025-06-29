@@ -35,10 +35,10 @@ global {
 	list<int> trips <- [] ;
 	list<int> trip_times <- [] ;
 	float proba_rerouting <- 0.0 ;
-	float car_weight <- 100.0 ;
-	float speed_weight <- 0.4 ;
-	point validation_center <- shape.location ;
-	float validation_radius <- sqrt(shape.area)/5 ;
+	float car_weight <- 200.0 ;
+	float speed_weight <- 4.0 ;
+	point validation_center <- shape.location + {-500,-300} ;
+	float validation_radius <- sqrt(shape.area)/4.6 ;
 	
 	bool left_lane_choice <- true ;
 	bool random_seed <- true;
@@ -61,7 +61,7 @@ global {
 
 	// variabili per i trip across the map
 	list<road_node> nodi_periferici <- [] ;
-	float proba_outside_map_trip <- 0.01 ;
+	float proba_outside_map_trip <- 0.1 ;
 
 	// variabili per la pulizia della rete
 	list<road_node> nodi_belli <- [] ;
@@ -71,6 +71,10 @@ global {
 	// variabili output
 	list<int> car_counts <- [] ;
 	float cumulative_acceleration <- 0.0 ;
+	
+	// Data
+	bool save_data<-false;
+	string filename<-'output';
 	
 	//Experiment utilities
 	
@@ -99,7 +103,7 @@ global {
 				// override maxspeed e num_lanes in base al tipo di strada
 				switch read("highway") {
 					match "primary" {maxspeed <- 80 #km / #h; num_lanes <- max (num_lanes, 4)  ; is_main_road <- true ;}
-					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ; is_main_road <- true ;}
+					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ;is_main_road <- true ;} //  
 					match "tertiary" {maxspeed <- 50 #km / #h ; is_main_road <- false ;}
 					match "residential" {maxspeed <- 30 #km / #h ; is_main_road <- false ;}
 				}
@@ -122,8 +126,7 @@ global {
 
 		create road_node from: shape_file_nodes ;
 		
-		//map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
-		map<road,float> weight_map <- road as_map (each::(each.maxspeed*each.length*speed_weight - car_weight * 3.5#m * length(each.all_agents)* length(each.all_agents)/each.length * each.num_lanes )) ;
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
 		// INIZIALIZZAZIONE SEMAFORI
@@ -277,6 +280,9 @@ global {
 		 
 
 	}
+	
+	
+	
 	reflex update_outputs {
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
@@ -286,6 +292,10 @@ global {
 			add mean((road where road(each).is_main_road) collect road(each).car_count_per_hour) to: car_counts ;
 		}
 		cumulative_acceleration <- cumulative_acceleration + sum((car collect each.acceleration) where (each > 0.0)) ;
+	}
+	
+	reflex save_data when: cycle mod 60#seconds = 0 and save_data{
+		save [cycle,length(car),mean(car collect each.delta),mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour),mean (car collect each.speed)  *3.6,100 * car count (each.speed <1) / (length(car)+1),cumulative_acceleration / max(trips at (length(trips) - 1),0.001),trips at (length(trips) - 1)] format:"csv" to:"../results/"+filename+".csv" rewrite:false;
 	}
 	reflex update_graph when: car_weight > 0.0 and cycle mod 60 #seconds = 0 {
 		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m*length(each.all_agents)))) ;		
@@ -921,6 +931,8 @@ experiment TrafficLightModel type: gui {
 	parameter "Importance of buses: " var: bus_factor category: "Godly semafors controls";
 	parameter "Importance of congested roads: " var: ask_factor category: "Godly semafors controls";
 	parameter "Importance of cars: " var: car_factor category: "Godly semafors controls";
+	parameter "Save data: " var: ask_factor category: "Data";
+	parameter "Output file name: " var: car_factor category: "Data";
 		
 	output {
 		display city_display type:2d {
@@ -1037,7 +1049,7 @@ experiment validation_flux type: batch  keep_seed: false until: (cycle = 3600) {
 	}
 	reflex save_flux {
 		ask simulations {
-			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes_revised.csv" rewrite:false;
+			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes_final.csv" rewrite:false;
 	    }
 	}
 }
