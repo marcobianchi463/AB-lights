@@ -931,8 +931,8 @@ experiment TrafficLightModel type: gui {
 	parameter "Importance of buses: " var: bus_factor category: "Godly semafors controls";
 	parameter "Importance of congested roads: " var: ask_factor category: "Godly semafors controls";
 	parameter "Importance of cars: " var: car_factor category: "Godly semafors controls";
-	parameter "Save data: " var: ask_factor category: "Data";
-	parameter "Output file name: " var: car_factor category: "Data";
+	parameter "Save data: " var: save_data category: "Data";
+	parameter "Output file name: " var: filename category: "Data";
 		
 	output {
 		display city_display type:2d {
