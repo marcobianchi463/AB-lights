@@ -17,7 +17,7 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 4500 ;
+	int nb_vehicles <- 3500 ;
 	int osc_amp <- 0 ;
 	int nb_bus_lines <- 10 ;
 	int nb_bus_min <- 10 ;
@@ -41,8 +41,8 @@ global {
 	float validation_radius <- sqrt(shape.area)/4.6 ;
 	
 	bool left_lane_choice <- true ;
-	bool random_seed <- true;
-	float fixed_seed<-1.0;
+	bool random_seed <- false;
+	float fixed_seed<-238.0;
 	
 	//Godly_g weights
 	float bus_factor<-200.0;
