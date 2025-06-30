@@ -17,18 +17,18 @@ global {
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 4500 ;
+	int nb_vehicles <- 3500 ;
 	int osc_amp <- 0 ;
-	int nb_bus_lines <- 10 ;
-	int nb_bus_min <- 10 ;
+	int nb_bus_lines <- 15 ;
+	int nb_bus_min <- 15 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
-	bool godly_g <- false;
+	bool godly_g <- true;
 	bool intelligent_g <- false ;
-	bool stupid_g <- true ;
+	bool stupid_g <- false ;
 	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
@@ -41,8 +41,8 @@ global {
 	float validation_radius <- sqrt(shape.area)/4.6 ;
 	
 	bool left_lane_choice <- true ;
-	bool random_seed <- true;
-	float fixed_seed<-1.0;
+	bool random_seed <- false;
+	float fixed_seed<-238.0;
 	
 	//Godly_g weights
 	float bus_factor<-200.0;
@@ -73,8 +73,8 @@ global {
 	float cumulative_acceleration <- 0.0 ;
 	
 	// Data
-	bool save_data<-false;
-	string filename<-'output';
+	bool save_data<-true;
+	string filename<-'godly_238';
 	
 	//Experiment utilities
 	
@@ -933,6 +933,8 @@ experiment TrafficLightModel type: gui {
 	parameter "Importance of cars: " var: car_factor category: "Godly semafors controls";
 	parameter "Save data: " var: save_data category: "Data";
 	parameter "Output file name: " var: filename category: "Data";
+	parameter "Random seed: " var: random_seed category: "Data";
+	parameter "Fixed seed: " var: fixed_seed category: "Data";
 		
 	output {
 		display city_display type:2d {
