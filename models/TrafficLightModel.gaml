@@ -57,6 +57,7 @@ global {
 	bool enableBatchIncrements<-false;
 	int batch_number <-20;
 	int update_time<-900;
+	int increaseEveryNSeconds<-3;
 	
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
@@ -297,7 +298,10 @@ global {
 		if enableBatchIncrements{
 			nb_vehicles <- int(nb_vehicles + (end_vehicles-start_vehicles)/batch_number);
 		}else{
-			nb_vehicles<-nb_vehicles+1;
+			if cycle mod increaseEveryNSeconds = 0{
+				nb_vehicles<-nb_vehicles+1;	
+			}
+			
 		}
 	}
 	
@@ -962,6 +966,7 @@ experiment TrafficLightModel type: gui {
 	parameter "Enable batch increase:" var:enableBatchIncrements category:"Stress test";
 	parameter "Batch number:" var:batch_number category:"Stress test";
 	parameter "Batch increase interval:" var:update_time category:"Stress test";
+	parameter "Add a car every n seconds(n>=1):" var:increaseEveryNSeconds category:"Stress test";
 
 		
 	output {
