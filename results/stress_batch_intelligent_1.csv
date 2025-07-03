@@ -1,4 +1,4 @@
-cycle,length(car),mean(car collect each.delta),mean((road where (each.is_main_road and (distance_to(each.location,validation_center) < validation_radius))) collect each.car_count_per_hour),mean(car collect each.speed) * 3.6,(100 * (car count (each.speed < 1))) / (length(car) + 1),cumulative_acceleration / max(trips at (length(trips) - 1),0.001),trips at (length(trips) - 1)
+cycle,length(car),delta_medio,flusso_medio,vel_media,auto_ferme,cum_acc,n_trips
 0,2000,0.0,0.0,0.0,99.95002498750625,0.0,0
 60,2044,40.59680134420612,2.0272727272727273,19.64689417125706,38.63080684596577,533.7245502918278,44
 120,2073,41.34999873443447,6.818181818181818,22.018668668990262,29.74927675988428,598.397199244151,74
