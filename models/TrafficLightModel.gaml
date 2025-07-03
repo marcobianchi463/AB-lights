@@ -50,7 +50,14 @@ global {
 	float ask_factor<-150.0;
 	int ask_threshold<-0;
 	
-
+	// Variabili stress test
+	int start_vehicles <- 0;
+	int end_vehicles <- 10000;
+	bool enableIncrementalVehicles <-false;
+	bool enableBatchIncrements<-false;
+	int batch_number <-20;
+	int update_time<-900;
+	
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
 	int max_timer <- int( 150 / step ) ;
@@ -90,6 +97,11 @@ global {
 		
 		loop times: 10 {
 			add 0 to: trips ; 
+		}
+		
+		// Logica incremento macchine nel tempo
+		if enableIncrementalVehicles{
+			nb_vehicles <- start_vehicles;
 		}
 
 		// INIZIALIZZAZIONE MAPPA STRADALE
@@ -279,6 +291,14 @@ global {
 		}
 		 
 
+	}
+	
+	reflex incrementVehicles when: enableIncrementalVehicles and (cycle mod update_time #seconds = 0 or not enableBatchIncrements){
+		if enableBatchIncrements{
+			nb_vehicles <- int(nb_vehicles + (end_vehicles-start_vehicles)/batch_number);
+		}else{
+			nb_vehicles<-nb_vehicles+1;
+		}
 	}
 	
 	
@@ -935,6 +955,14 @@ experiment TrafficLightModel type: gui {
 	parameter "Output file name: " var: filename category: "Data";
 	parameter "Random seed: " var: random_seed category: "Data";
 	parameter "Fixed seed: " var: fixed_seed category: "Data";
+	
+	parameter "Start vehicle number:" var:start_vehicles category:"Stress test";
+	parameter "Final vehicle number:" var:end_vehicles category:"Stress test";
+	parameter "Enable vehicles increment:" var:enableIncrementalVehicles category:"Stress test";
+	parameter "Enable batch increase:" var:enableBatchIncrements category:"Stress test";
+	parameter "Batch number:" var:batch_number category:"Stress test";
+	parameter "Batch increase interval:" var:update_time category:"Stress test";
+
 		
 	output {
 		display city_display type:2d {
