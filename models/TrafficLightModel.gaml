@@ -1,7 +1,7 @@
 /**
 * Name: TrafficLightModel
 * Based on the internal skeleton template. 
-* Author: marco
+* Author: marco, alessandro, emanuele
 * Tags: 
 */
 
