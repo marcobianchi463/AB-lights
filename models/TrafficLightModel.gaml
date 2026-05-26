@@ -1,7 +1,7 @@
 /**
 * Name: TrafficLightModel
 * Based on the internal skeleton template. 
-* Author: marco
+* Author: marco, alessandro, emanuele
 * Tags: 
 */
 
@@ -9,71 +9,263 @@ model TrafficLightModel
 
 global {
 	/** Insert the global definitions, variables and actions here */
-	file shape_file_buildings <- file("../includes/qgis/building.shp") ; 
-	file shape_file_roads <- file("../includes/qgis/split_road_clean.shp") ;
-	file shape_file_nodes <- file("../includes/qgis/junction_clean.shp") ;
+	file shape_file_buildings <- file("../includes/qgis/building.shp") ;
+//	file shape_file_roads <- file("../includes/qgis/turin_pst/roads.shp") ;
+//	file shape_file_nodes <- file("../includes/qgis/turin_pst/junctions.shp") ;
+	file shape_file_roads <- file("../includes/qgis/pstr_map/roads_fium5.shp") ;
+	file shape_file_nodes <- file("../includes/qgis/pstr_map/junctions_fium5.shp") ;
 	geometry shape <- envelope(shape_file_roads) ;
 	
 	float step <- 1.0 #second ;
-	int nb_vehicles <- 500;
-	int nb_bus_lines <- 3 ;
-	int nb_bus_min <- 2 ;
+	int nb_vehicles <- 3500 ;
+	int osc_amp <- 0 ;
+	int nb_bus_lines <- 15 ;
+	int nb_bus_min <- 15 ;
 	list<road_node> bus_destinations <- [] ;
 	list<road_node> bus_sources <- [] ;
 	float respawn_prob <- 1.0 ;
 	int dimension <- 1 ;
 	int v_maxspeed <- 150 ;
+	bool godly_g <- true;
 	bool intelligent_g <- false ;
-	bool stupid_g <- true ;
-	float t_ang_toll <- 10.0 ;
+	bool stupid_g <- false ;
+	float t_ang_toll <- 1.0 ;
 	// int min_timer <- 15 ;
 	int n_trips <- 0 ;
 	list<int> trips <- [] ;
+	list<int> trip_times <- [] ;
 	float proba_rerouting <- 0.0 ;
-	float car_weight <- 100.0 ;
+	float car_weight <- 200.0 ;
+	float speed_weight <- 4.0 ;
+	point validation_center <- shape.location + {-500,-300} ;
+	float validation_radius <- sqrt(shape.area)/4.6 ;
 	
-	bool left_lane_choice <- false ;
-
+	bool left_lane_choice <- true ;
+	bool random_seed <- false;
+	float fixed_seed<-238.0;
+	
+	//Godly_g weights
+	float bus_factor<-200.0;
+	float car_factor<-1.0;
+	float ask_factor<-150.0;
+	int ask_threshold<-0;
+	
+	// Variabili stress test
+	int start_vehicles <- 0;
+	int end_vehicles <- 10000;
+	bool enableIncrementalVehicles <-false;
+	bool enableBatchIncrements<-false;
+	int batch_number <-20;
+	int update_time<-900;
+	int increaseEveryNSeconds<-3;
+	
 	// variabili per la gestione dei semafori
 	int min_timer <- int( 30 / step ) ;
 	int max_timer <- int( 150 / step ) ;
 	float bus_request_distance <- 30.0 #m ;
 
 	graph the_graph ;
+	graph start_graph ;
+
+	// variabili per i trip across the map
+	list<road_node> nodi_periferici <- [] ;
+	float proba_outside_map_trip <- 0.1 ;
+
+	// variabili per la pulizia della rete
+	list<road_node> nodi_belli <- [] ;
+	road_node nodo_lontano <- nil ;
+	road_node nodo_alfano <- nil ;
+
+	// variabili output
+	list<int> car_counts <- [] ;
+	float cumulative_acceleration <- 0.0 ;
+	
+	// Data
+	bool save_data<-true;
+	string filename<-'godly_238';
+	
+	//Experiment utilities
+	
+	list<int> vehicles_per_hour_turin <- [2200,1500,900,650,1000,2800,6000,14100,18800,16200,14300,12600,12700,12600,13700,14000,15200,17000,17200,15000,10500,6800,5800,4800];
+	int map_size <- 35;
+	int turin_size <- 130;
+	list<int> vehicle_on_map_per_hour <- vehicles_per_hour_turin collect (each * map_size / turin_size);
+	
 	init {
-		seed <- 1.0 ;
+		if not random_seed{
+			seed <- fixed_seed ;
+		}
+		
 		loop times: 10 {
 			add 0 to: trips ; 
 		}
+		
+		// Logica incremento macchine nel tempo
+		if enableIncrementalVehicles{
+			nb_vehicles <- start_vehicles;
+		}
+
+		// INIZIALIZZAZIONE MAPPA STRADALE
+
 		create building from: shape_file_buildings ;
 		create road from: shape_file_roads with:[
 			num_lanes::max(2, int(read("lanes"))),
 			maxspeed::max(30.0 + rnd(5), (read("maxspeed_t")="urban:it")? 30.0+ rnd(5) : 50.0+rnd(5)),
 			oneway::string(read("oneway"))]
 			{
+				// override maxspeed e num_lanes in base al tipo di strada
+				switch read("highway") {
+					match "primary" {maxspeed <- 80 #km / #h; num_lanes <- max (num_lanes, 4)  ; is_main_road <- true ;}
+					match "secondary" {maxspeed <- 70 #km / #h; num_lanes <- max (num_lanes, 3) ;is_main_road <- true ;} //  
+					match "tertiary" {maxspeed <- 50 #km / #h ; is_main_road <- false ;}
+					match "residential" {maxspeed <- 30 #km / #h ; is_main_road <- false ;}
+				}
+				
 				if oneway !="yes"{
-					
-						create road {
-							num_lanes <- myself.num_lanes ;
-		                    shape <- polyline(reverse(myself.shape.points)) ;
-		                    
-		                    maxspeed <- myself.maxspeed ;
-							length <- myself.length ;
-		                    linked_road <- myself ;
-		                    myself.linked_road <- self ;
-						}					
+					is_linked <- true ;
+					create road {
+						num_lanes <- myself.num_lanes ;
+						shape <- polyline(reverse(myself.shape.points)) ;
+						
+						maxspeed <- myself.maxspeed ;
+						length <- myself.length ;
+						linked_road <- myself ;
+						myself.linked_road <- self ;
+						is_linked <- true ;
+					}					
 					
 				}
 			}
+
 		create road_node from: shape_file_nodes ;
 		
-		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
 		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
 		
+		// INIZIALIZZAZIONE SEMAFORI
+		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
+		int rndnum <- rnd(100) ;
+		loop i over: road_node{// INIZIALIZZAZIONE SEMAFORI
+			//conto quante strade a doppio senso ci sono nel nodo
+			loop j over: i.roads_in {
+				if (road(j).linked_road != nil) {
+					i.linked_count <- i.linked_count + 1 ;
+				}
+				add j to: i.ordered_road_list ;
+			}
+			
+			i.roads_in <- i.roads_in sort_by(-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)));
+
+			loop j over: i.roads_out {
+				if road(j).linked_road = nil {
+					add j to: i.ordered_road_list ;
+				}
+			}
+			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
+			//NON toccare la riga sotto
+			i.ordered_road_list <- i.ordered_road_list sort_by (-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)) );
+			
+			
+			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
+			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
+			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and length(i.roads_out) - i.linked_count > 1 ) {
+				i.is_traffic_light <- true ;
+				// i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
+				i.timer <- 0 ;		// con questo tutti i semafori hanno la stessa fase
+				
+				if (length(i.ordered_road_list) = 3 and length(i.roads_in) = 3) {
+					float angle <- atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) - atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 1
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) - atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 1 e 2
+						add i.roads_in[1] to: i.roads_in_even ;
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_odd ;
+					}
+					angle <- atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) - atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) ;
+					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
+						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 2
+						add i.roads_in[2] to: i.roads_in_even ;
+						add i.roads_in[0] to: i.roads_in_even ;
+						add i.roads_in[1] to: i.roads_in_odd ;
+					}
+				}else{
+					loop j from:0 to:length(i.ordered_road_list)-1 step:2{
+						if i.ordered_road_list[j] in i.roads_in {
+							add i.ordered_road_list[j] to: i.roads_in_even ;
+						}
+					}
+					loop j from:1 to:length(i.ordered_road_list)-1 step:2{
+						if i.ordered_road_list[j] in i.roads_in{
+							add i.ordered_road_list[j] to: i.roads_in_odd ;
+						}
+					}
+				}
+				
+				add i.roads_in_even to: i.stop ;
+			}
+			// write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
+		}
+		// Pulizia grandi incroci
+		if true {
+			loop i over: road_node {
+				if i.linked_count = 0 and i.is_traffic_light {
+					// write "processing node #" + i.index ;
+					nodi_belli <- list<road_node>(union(i.roads_in collect road(each).source_node, i.roads_out collect road(each).target_node)) ;
+					nodi_belli <- nodi_belli sort_by (-atan2((road_node(each).location.y-i.location.y) , (road_node(each).location.x-i.location.x))) ;
+					// write "0" ;
+					if nodi_belli count (each distance_to i < 25 #m) = 3 and length(nodi_belli) = 4 {
+						// write "1" ;
+						nodo_lontano <- nodi_belli where (each distance_to i > 25 #m) at 0 ;
+						if i.ordered_road_list at (nodi_belli index_of nodo_lontano) in i.roads_in {
+							// write "2" ;
+							nodo_alfano <- nodi_belli at ((nodi_belli index_of nodo_lontano + 2) mod 4) ;
+							// write "3" ;
+							do pulizia(nodo_alfano) ;
+							// write "4" ;
+							if length(nodo_alfano.ordered_road_list) = 4 and nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+								// write "5" ;
+								nodo_alfano <- road_node(road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node) ;
+								do pulizia(nodo_alfano) ;
+								if nodo_alfano distance_to road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node < 25 #m {
+									nodo_alfano <- road_node(road(nodo_alfano.ordered_road_list at ((nodi_belli index_of nodo_lontano + 2) mod 4)).target_node) ;
+									do pulizia(nodo_alfano) ;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m * length(each.all_agents)))) ;
+		the_graph <- as_driving_graph (road, road_node) with_weights weight_map ;
+		start_graph <- as_driving_graph (road, road_node) with_weights (road as_map (each::(each.length/each.maxspeed*speed_weight))) ;
+		
+		// INIZIALIZZAZIONE VEICOLI
+		nodi_periferici <- road_node where !(each.is_traffic_light = false) ;
+		nodi_periferici <- nodi_periferici where (true in collect(road_node(each).roads_out, road(each).is_main_road)) ;
+		nodi_periferici <- nodi_periferici where ((each.location distance_to validation_center) > validation_radius) ;
 		create car number: nb_vehicles {
-			location <- one_of(road_node).location ;
+			if flip(proba_outside_map_trip) {
+				start_node <- one_of(nodi_periferici) ;
+			} else {
+				start_node <- one_of(road_node) ;
+			}
+			if flip(proba_outside_map_trip){
+				goal_node <- one_of(nodi_periferici) ;
+			}else{
+				goal_node <- one_of(road_node) ;
+			}
+			location <- start_node.location ;
 			max_speed <- v_maxspeed #km / #h;
 			vehicle_length <- 3.0 #m ;
+			current_path <- compute_path (graph: the_graph, target: goal_node) ;
 		}
 		create bus number: nb_bus_lines {
 			max_speed <- 50 #km / #h;
@@ -99,86 +291,52 @@ global {
 			} */
 		}
 		 
-		// INIZIALIZZAZIONE SEMAFORI
-		// loop sui nodi della rete. Se le strade sono più di due il nodo diventa un semaforo
-		int rndnum <- rnd(100) ;
-		loop i over: road_node{
-			//write i.index ;
-			//write i.name ;
-			
-			//conto quante strade a doppio senso ci sono nel nodo
-			loop j over: i.roads_in {
-				// a quanto pare loopare su una lista di agenti strada non è abbastanza
-				// per far capire che j è una strada 
-				if (road(j).linked_road != nil) {
-					i.linked_count <- i.linked_count + 1 ;
-					
-				}else{
-					add j to: i.ordered_road_list  ; //aggiungo la strada alla lista ordinata solo se è oneway
-				}
-				
-				
+
+	}
+	
+	reflex incrementVehicles when: enableIncrementalVehicles and (cycle mod update_time #seconds = 0 or not enableBatchIncrements){
+		if enableBatchIncrements{
+			nb_vehicles <- int(nb_vehicles + (end_vehicles-start_vehicles)/batch_number);
+		}else{
+			if cycle mod increaseEveryNSeconds = 0{
+				nb_vehicles<-nb_vehicles+1;	
 			}
 			
-			i.roads_in <- i.roads_in sort_by(-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)));
-			i.ordered_road_list <<+ i.roads_out;
-			//ordino la lista delle strade in modo che le strade siano in ordine antiorario
-			//NON toccare la riga sotto
-			i.ordered_road_list <- i.ordered_road_list sort_by (-atan2((road(each).location.y-i.location.y) , (road(each).location.x-i.location.x)) );
-			
-			
-			//	controllo se il nodo è un incrocio: se ha più di 2 strade in ingresso è sempre un incrocio
-			//	se ha 2 strade in ingresso a doppio senso e nessun'altra strada in uscita non è un incrocio
-			if (length(i.roads_in) > 2 or length(i.roads_in) = 2 and length(i.roads_out) - i.linked_count > 1 ) {
-				i.is_traffic_light <- true ;
-				i.timer <- rnd(i.green_time) ;	/* inizializzo randomicamente la fase del semaforo */
-				i.timer <- rndnum ;		// con questo tutti i semafori hanno la stessa fase
-				
-				if (length(i.roads_in) = 3) {
-					float angle <- atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) - atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 1
-						add i.roads_in[0] to: i.roads_in_even ;
-						add i.roads_in[1] to: i.roads_in_even ;
-						add i.roads_in[2] to: i.roads_in_odd ;
-					}
-					angle <- atan2(i.roads_in[1].location.y - i.location.y, i.roads_in[1].location.x - i.location.x) - atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 1 e 2
-						add i.roads_in[1] to: i.roads_in_even ;
-						add i.roads_in[2] to: i.roads_in_even ;
-						add i.roads_in[0] to: i.roads_in_odd ;
-					}
-					angle <- atan2(i.roads_in[2].location.y - i.location.y, i.roads_in[2].location.x - i.location.x) - atan2(i.roads_in[0].location.y - i.location.y, i.roads_in[0].location.x - i.location.x) ;
-					if (abs(angle) > 180 - t_ang_toll and abs(angle) < 180 + t_ang_toll) {
-						// se le strade sono in direzioni opposte, allora il nodo è un semaforo a T sui rami 0 e 2
-						add i.roads_in[2] to: i.roads_in_even ;
-						add i.roads_in[0] to: i.roads_in_even ;
-						add i.roads_in[1] to: i.roads_in_odd ;
-					}
-				}else{
-					loop j from:0 to:length(i.roads_in)-1 step:2{
-						add i.roads_in[j] to: i.roads_in_even;
-					}
-					loop j from:1 to:length(i.roads_in)-1 step:2{
-						add i.roads_in[j] to: i.roads_in_odd;
-					}
-				}
-				
-				add i.roads_in_even to: i.stop ;
-			}
-			write (i.is_traffic_light) ? "is traffic light" : "is not traffic light";
 		}
 	}
+	
+	
+	
 	reflex update_outputs {
 		write cycle ;
 		remove from: trips index: 0 ;
 		add (n_trips + trips at (length(trips) - 1)) to: trips ;
 		n_trips <- 0 ;
+		if cycle mod 3600 #seconds = 0 {
+			// write "cycle " + cycle ;
+			add mean((road where road(each).is_main_road) collect road(each).car_count_per_hour) to: car_counts ;
+		}
+		cumulative_acceleration <- cumulative_acceleration + sum((car collect each.acceleration) where (each > 0.0)) ;
 	}
-	reflex update_graph when: car_weight > 0.0 {
-		map<road,float> weight_map <- road as_map (each::(each.length+car_weight*length(each.all_agents)/each.length));		
+	
+	reflex save_data when: cycle mod 60#seconds = 0 and save_data{
+		save [cycle,length(car),mean(car collect each.delta),mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour),mean (car collect each.speed)  *3.6,100 * car count (each.speed <1) / (length(car)+1),cumulative_acceleration / max(trips at (length(trips) - 1),0.001),trips at (length(trips) - 1)] format:"csv" to:"../results/"+filename+".csv" rewrite:false;
+	}
+	reflex update_graph when: car_weight > 0.0 and cycle mod 60 #seconds = 0 {
+		map<road,float> weight_map <- road as_map (each::(each.length/each.maxspeed*speed_weight + car_weight / max(0.01, each.length * each.num_lanes - 3#m*length(each.all_agents)))) ;		
 		the_graph <- the_graph with_weights weight_map ;
+	}
+	action pulizia(road_node nodo){
+		loop j over: road_node(nodo).ordered_road_list {
+			if road(j).length < 20 #m {
+				road(j).no_prior <- true ;
+				if road(j).is_linked {
+					road(road(j).linked_road).no_prior <- true ;
+				}
+			}
+		}
+		nodo.stop <- [] ;
+		nodo.is_traffic_light <- false ;
 	}
 }
 
@@ -190,9 +348,10 @@ species vehicle skills: [driving] {
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_respect_priorities <- 0.75 + rnd(0.24);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
+		proba_block_node <- 0.0;
 		
 	}
 
@@ -207,40 +366,53 @@ species vehicle skills: [driving] {
 	
 	reflex move when: final_target != nil {
 		
-		road_now <- road(current_road) ;
+		
 		do drive ;
 	}
 	
-	reflex increment_car_count_of_road when: true{
-		if(road_now != current_road){
-			road(current_road).car_count_per_hour <- road(current_road).car_count_per_hour +1;
-		}
+	reflex increment_car_count_of_road when: road_now != current_road{
+		
+		road_now <- road(current_road) ;
+		road(current_road).car_count_per_hour <- road(current_road).car_count_per_hour +1;
+	
 	}
 	
-	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil{
+	reflex left_lane when: left_lane_choice and road_now != current_road and final_target != nil and next_road != nil {
 		n <- length(road_node(current_target).ordered_road_list);
 		left_turn <- false ;
 		right_side_driving <- true ;
 		acc_bias <- 1.0 ;
+		allowed_lanes <- [] ;
 		if (n > 2){
-			if (road(current_road).oneway != "yes"){
-				i_in <- road_node(current_target).ordered_road_list
-				index_of road(road(current_road).linked_road) ;
-			}else{
-				i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
-			}
-			i_out <- road_node(current_target).ordered_road_list index_of road(next_road) ;
+			// if (road(current_road).linked_road != "yes"){
+			// 	i_in <- road_node(current_target).ordered_road_list
+			// 	index_of road(road(current_road).linked_road) ;
+			// }else{
+			i_in <- road_node(current_target).ordered_road_list index_of road(current_road);
+			// }
+			i_out <- road_node(current_target).ordered_road_list index_of (road(next_road).is_linked ? road(next_road).linked_road : road(next_road)) ;
 			left_turn <- mod(i_out-i_in+n,n) > min(2,n/2) ? true : false ;
 			if (left_turn and current_road != nil)
 			{
 				// current_lane <- 0 /*road(current_road).num_lanes - 1*/ ;
 				// right_side_driving <- false ;
-				acc_bias <- -10.0 ;
+				if road(current_road).num_lanes > 1 {
+					allowed_lanes <- list(road(current_road).num_lanes - 1, road(current_road).num_lanes - 2) ;
+				} else {
+					allowed_lanes <- list(road(current_road).num_lanes - 1) ;
+				}
+
+				acc_bias <- -50.0 ;
 			}else{
 				// right_side_driving <- true ;
 				acc_bias <- 1.0 ;
 			}
 		}
+	}
+
+	reflex respecting_priorities when: current_road != nil {
+		if road(current_road).no_prior {proba_respect_priorities <- 0.0 ;}
+		else {proba_respect_priorities <- 0.75 + rnd(0.24) ;}
 	}
 
 	/*aspect default {
@@ -275,17 +447,25 @@ species car parent:vehicle{
 	list<road> edge_list ;
 	list<road_node> node_list ;
 
+	road_node start_node ;
+	road_node goal_node ;
+	float ideal_distance ;
+	float delta ;
+	bool must_compute <- true ;
 	list<float> speed_vector <- [] ;
 	list<float> acceleration_vector <- [] ;
 	
 	float offset_distance<-0.2;
+
+	int trip_time <- 0 ;
+
 	init{
 		vehicle_length <- 3.8 #m ;
 		max_speed <- 150 #km / #h ;
-		proba_respect_priorities <- 0.95 + rnd(0.04);
+		proba_respect_priorities <- 0.75 + rnd(0.24);
 		proba_lane_change_up <- 0.2;
 		proba_lane_change_down <- 0.2;
-		
+		trip_time <- cycle ;
 	}
 
 	reflex update_output_status when: every(2 #seconds){
@@ -297,17 +477,36 @@ species car parent:vehicle{
 		// se il veicolo si blocca all'arrivo ha una probabilità di cambiare posizione
 		// questo serve nei casi in cui il nodo di arrivo ha solo strade in ingresso
 		// per mappe grandi è raro che succeda, ma non in mappe piccole 
-		if (length(car) < (1.0 - cos(360 * (current_date.hour*3600 +
+		if (length(car) < (1.0 - osc_amp * cos(360 * (current_date.hour*3600 +
 		current_date.minute*60 + current_date.second - 6 * 3600) / (3600.0 * 12)) / 2.0)*nb_vehicles){
 			create car number: 2 {
-				location <- one_of(building).location ;
-				current_path <- compute_path (graph: the_graph, target: one_of(road_node)) ;
+				if flip(proba_outside_map_trip) {
+					start_node <- one_of(nodi_periferici) ;
+				}else{
+					start_node <- one_of(road_node) ;	
+				}
+				if flip(proba_outside_map_trip){
+					goal_node <- one_of(nodi_periferici) ;
+				}else{
+					goal_node <- one_of(road_node) ;
+				}
+				location <- start_node.location ;
+				current_path <- compute_path (graph: the_graph, target: goal_node) ;
 				max_speed <- v_maxspeed #km / #h;
 				vehicle_length <- 3.0 #m ;
 			}
 		}
 		n_trips <- n_trips + 1 ;
+		add (cycle - trip_time) to: trip_times ;
 		do die ;
+	}
+
+	reflex compute_delta when: must_compute {
+		must_compute <- false ;
+		current_path <- compute_path (graph: start_graph, target: goal_node) ;
+		ideal_distance <- sum(current_path.edges collect road(each).length);
+		current_path <- compute_path (graph: the_graph, target: goal_node) ;
+		delta <- sum(current_path.edges collect road(each).length) - ideal_distance ;
 	}
 }
 
@@ -343,7 +542,7 @@ species bus parent:vehicle skills: [fipa] {
 				current_path <- compute_path (graph: the_graph, target: current_destination) ;
 				
 				
-				max_speed <- 50 #km / #h;
+				max_speed <- 50 #km / #h ;
 				vehicle_length <- 8.5 #m ;
 			}
 			// creo un bus che percorre lo stesso tragitto
@@ -385,6 +584,9 @@ species road skills: [road_skill] {
 	string oneway ;
 	int car_count_per_hour<-0;
 	bool reset_car_count <- false;
+	bool is_main_road ;
+	bool is_linked <- false ;
+	bool no_prior <- false ;
 
 	
 	aspect base {
@@ -394,6 +596,18 @@ species road skills: [road_skill] {
 	init {
 		loop i over: segment_lengths {
 			length <- length+ float(i) ;
+		}
+	}
+	reflex check_main_road when:cycle=1{
+		if source_node = nil or target_node = nil{
+			is_main_road<-false;
+		}
+	}
+	reflex color_road when:true{
+		if distance_to(location,validation_center)<validation_radius and is_main_road{
+			color<-#red;
+		}else{
+			color<-#blue;
 		}
 	}
 	// reflex check_reset when: reset_car_count = true {
@@ -407,19 +621,22 @@ species road skills: [road_skill] {
 	reflex car_count_reset when: cycle mod 3600 #seconds = 1 {
 		car_count_per_hour <- 0 ;
 	}
-	
+	action kys {
+		do die ;
+	}
 }
 
 // specie road_node con intersection_skill
 species road_node skills: [intersection_skill, fipa] {
 	bool is_traffic_light <- false ;
-	int timer ;
+	int timer <- int(rnd(0,5)) ;
 	int linked_count <- 0 ;	//	numero di strade a doppio senso di marcia, necessario per determinare se un nodo è un incrocio
-	int switch_time <- 20 + rnd(20);
-	int green_time <- int(switch_time / step #s) ;
+	int switch_time <- 45 ;
+	int green_time <- int(switch_time  / step #s) ;
 	int red_time <- int(switch_time / step #s) ;
+	int yellow_time <- int(3 / step #s) ;
 	bool road_even_ok <- false ;	//	quando true è verde per le strade con indice pari
-	rgb color <- #green ;
+	rgb color <- #red ;
 	list roads_in_even <- [] ;	//	sono le strade in ingresso con indice pari
 	list roads_in_odd <- [] ;	//	sono le strade in ingrsso con indice dispari
 	list ordered_road_list <-[]; // strade ordinate con solo out in caso di linked
@@ -429,6 +646,13 @@ species road_node skills: [intersection_skill, fipa] {
 	list<road_node> nearby_nodes <- [] ;
 	bus nearest_bus <- nil ;
 	bool bus_on_road <- false ;
+	//Godly_g variables
+	float roads_in_even_weight <-0.0;
+	float roads_in_odd_weight <- 0.0;
+	bool switching<-false;
+	int yellow_counter;
+	int inbound_vehicles<-0;
+	
 	
 	int cars_in <- 0 ;
 	int cars_in_threshold <- 0 ;
@@ -441,9 +665,9 @@ species road_node skills: [intersection_skill, fipa] {
 	}
 
 
-	reflex gaza_cleansing when: is_traffic_light{
+	reflex bus_still_here when: is_traffic_light{
 		loop i over: requests {
-			if /*dead(i.sender) or */bus(i.sender).current_road in roads_out {
+			if dead(i.sender) or bus(i.sender).current_road in roads_out {
 				//write "cycle " + cycle + " " + name + ": terminate conversation with bus " + i.sender.name ;
 				do agree message: i contents: ["Crossed the road"] ;
 				if i.sender = nearest_bus {
@@ -488,6 +712,23 @@ species road_node skills: [intersection_skill, fipa] {
 		//write "cycle " + cycle + " " + name + ": nearest bus is " + nearest_bus.name ;
 	}
 	
+	
+	
+	reflex congestion_ask_your_neighbor when: flip(0.1) {
+		inbound_vehicles <- 0 ;
+		loop j over: roads_in {
+			inbound_vehicles <- inbound_vehicles + length(road(j).all_agents) ;
+		}
+		if inbound_vehicles > ask_threshold {
+			loop i over: roads_out {
+				if sum(collect(road(i).all_agents where (!dead(each) and each != nil),vehicle(each).vehicle_length)) > road(i).length * road(i).num_lanes * 0.8 {
+					write "Richiesta per "+ road(i).target_node;
+					do start_conversation to: [road(i).target_node] protocol: "fipa-propose" performative: "propose" contents: [road(i)] ;
+					//write i;
+				}
+			}
+		}
+	}
 
 	// reflex terminate_conversation when: nearest_bus != nil and !dead(nearest_bus) and nearest_bus.current_road in roads_out {
 	// 	write "cycle " + cycle + " " + name + ": terminate conversation with bus " + nearest_bus.name ;
@@ -518,6 +759,112 @@ species road_node skills: [intersection_skill, fipa] {
 	}
 
 	reflex classic_update_state when: is_traffic_light {
+		if godly_g{
+			timer <-timer+1;
+			count_even <- 0.0 ;
+			count_odd <- 0.0 ;
+			
+			roads_in_even_weight<-0.0;
+			roads_in_odd_weight<-0.0;
+			
+			loop k over: roads_in_even{
+				count_even <- count_even + float ( length ( road(k).all_agents ) / ( road(k).length ) ) ;
+			}
+			loop l over: roads_in_odd{
+				count_odd <- count_odd + float ( length ( road(l).all_agents ) / ( road(l).length ) ) ;
+			}
+			roads_in_even_weight<-roads_in_even_weight+count_even * car_factor;
+			roads_in_odd_weight<-roads_in_odd_weight+count_odd * car_factor;
+			
+			if bus_on_road and !dead(nearest_bus) {
+				if nearest_bus.road_now in roads_in_even {
+					roads_in_even_weight <- roads_in_even_weight + bus_factor;
+				} else if nearest_bus.road_now in roads_in_odd {
+					roads_in_odd_weight <- roads_in_odd_weight + bus_factor;
+				}
+			}
+			
+			if !empty(proposes){
+				loop j over: proposes{
+					loop k over: road_node(j.sender).roads_out{
+							if k in roads_in_even{
+								
+								roads_in_even_weight <- roads_in_even_weight + ask_factor;
+							}
+							else if k in roads_in_odd{
+
+								roads_in_odd_weight <-roads_in_odd_weight +ask_factor;
+							}
+						
+					}
+				}
+			}
+			
+			//15 è tempo min prima di switch da parametrizzare
+			if timer > 15 {
+				if road_even_ok and roads_in_odd_weight > roads_in_even_weight +tolerance{
+					//do switch_state;
+					switching<-true;
+					// loop j over: proposes{
+					// 	if road(j.contents) in roads_in_odd{
+					// 		write "Richiesta accettata";
+					// 		do accept_proposal message: j contents: ['OK!'] ;
+					// 	}else{
+					// 		write "Richiesta rejected";
+					// 		do reject_proposal message: j contents: ['No'] ;
+					// 	}
+					// }
+					loop j over: proposes {
+						if inter(road_node(j.sender).roads_out, roads_in_odd) != [] {
+							do accept_proposal message: j contents: ['OK!'] ;
+							write "Richiesta accettata";
+						} else {
+							do reject_proposal message: j contents: ['No'] ;
+							write "Richiesta rejected" ;
+						}
+					}
+				}else if !road_even_ok and roads_in_odd_weight +tolerance < roads_in_even_weight {
+					//do switch_state;
+					switching<-true;
+					// loop j over: proposes{
+					// 	if road(j.contents) in roads_in_even{
+					// 		do accept_proposal message: j contents: ['OK!'] ;
+					// 	}else{
+					// 		do reject_proposal message: j contents: ['No'] ;
+					// 	}
+					// }
+					loop j over: proposes {
+						if inter(road_node(j.sender).roads_out, roads_in_even) != [] {
+							do accept_proposal message: j contents: ['OK!'] ;
+							write "Richiesta accettata";
+						} else {
+							do reject_proposal message: j contents: ['No'] ;
+							write "Richiesta rejected";
+						}
+					}
+				//Max timer
+				}else if timer > 150 {
+					//do switch_state;
+					switching<-true;
+					loop j over: proposes {do accept_proposal message: j contents: ['OK!'] ;}
+				}
+				
+				
+			}
+			
+			
+			if switching = true{
+				yellow_counter<-yellow_counter+1;
+				stop <- union(roads_in_even, roads_in_odd) ;
+				if yellow_counter >5 {
+					yellow_counter <- 0;
+					switching<-false;
+					do switch_state;
+				}
+			}
+			
+		}
+		
 		if intelligent_g{
 
 			timer <-timer+1;
@@ -567,9 +914,11 @@ species road_node skills: [intersection_skill, fipa] {
 				}
 			} else {
 				if !road_even_ok and timer >= green_time {
-					do switch_state ;
+					stop <- union(roads_in_even, roads_in_odd) ;
+					if timer >= green_time + yellow_time {do switch_state ;}
 				} else if timer >= red_time {
-					do switch_state ;
+					stop <- roads_in_even + roads_in_odd ;
+					if timer >= green_time + yellow_time {do switch_state ;}
 				}
 			}
 			if timer >= max_timer {
@@ -578,12 +927,11 @@ species road_node skills: [intersection_skill, fipa] {
 		}
 	}
 	
-	int switch_state {
+	action switch_state {
 		stop[] <- road_even_ok? roads_in_even : roads_in_odd ;	//	fermo le strade pari se finora avevano il verde
 		road_even_ok <- !road_even_ok ;							//	altrimenti fermo le dispari, poi aggiorno road_even_ok
 		color <- color = #red ? #green : #red ;
 		timer <- 0 ;
-		return 0 ;
 	}
 
 	float compute_bus_time (bus bus_in) {
@@ -595,7 +943,7 @@ species road_node skills: [intersection_skill, fipa] {
 	aspect default {
 		if (is_traffic_light) {
 			//	disegno un triangolo del colore del semaforo orientato verso la prima strada in ingresso
-			draw triangle(7) rotate: towards(location,roads_in[0].location) + 180 color: color ;
+			draw triangle(7) rotate: towards(location,roads_in[0].location) - 90 color: color ;
 		} else {
 			draw circle(1) color: #black ;
 		}
@@ -614,19 +962,37 @@ experiment TrafficLightModel type: gui {
 	parameter "Shapefile for the roads:" var: shape_file_roads category: "GIS" ;
 	parameter "Shapefile for the bounds:" var: shape_file_nodes category: "GIS" ;
 	// parameter "Probability of respawn:" var: respawn_prob category: "BOH" ;
-	parameter "Vehicle dimension:" var: dimension ;
-	parameter "Mean number of vehicles:" var: nb_vehicles ;
-	parameter "Number of bus lines:" var: nb_bus_lines ;
-	parameter "Minimum number of buses:" var: nb_bus_min ;
-	parameter "Maximum speed:" var: v_maxspeed ;
-	parameter "Intelligent traffic lights:" var:intelligent_g ;
-	parameter "Stupid traffic lights:" var:stupid_g ;
-	parameter "T-junction angle tolerance:" var: t_ang_toll ;
-	// parameter "Minimum timer for traffic light:" var: min_timer ;
-	parameter "User switch:" var: left_lane_choice ;
-	parameter "proba_rerouting" var: proba_rerouting ;
-	parameter "Weight" var: car_weight ;
-	parameter "Max distance for green light request" var: bus_request_distance ;
+	parameter "Vehicle dimension:" var: dimension category: "Vehicles";
+	parameter "Mean number of vehicles:" var: nb_vehicles category: "Vehicles";
+	parameter "Number of bus lines:" var: nb_bus_lines category: "Vehicles";
+	parameter "Minimum number of buses:" var: nb_bus_min category: "Vehicles";
+	parameter "Maximum speed:" var: v_maxspeed category: "Vehicles";
+	parameter "Probaility for trip to go or start outside map:" var: proba_outside_map_trip category:"Vehicles";
+	parameter "Godly traffic lights:" var:godly_g category: "Intersection";
+	parameter "Intelligent traffic lights:" var:intelligent_g category: "Intersection";
+	parameter "Stupid traffic lights:" var:stupid_g category: "Intersection";
+	parameter "T-junction angle tolerance:" var: t_ang_toll category: "Intersection";
+	parameter "Minimum timer for traffic light:" var: min_timer ;
+	parameter "Left lane switch:" var: left_lane_choice category: "Vehicles";
+	parameter "proba_rerouting" var: proba_rerouting category: "Vehicles";
+	parameter "Weight" var: car_weight category: "Vehicles";
+	parameter "Max distance for green light request" var: bus_request_distance category: "Vehicles";
+	parameter "Importance of buses: " var: bus_factor category: "Godly semafors controls";
+	parameter "Importance of congested roads: " var: ask_factor category: "Godly semafors controls";
+	parameter "Importance of cars: " var: car_factor category: "Godly semafors controls";
+	parameter "Save data: " var: save_data category: "Data";
+	parameter "Output file name: " var: filename category: "Data";
+	parameter "Random seed: " var: random_seed category: "Data";
+	parameter "Fixed seed: " var: fixed_seed category: "Data";
+	
+	parameter "Start vehicle number:" var:start_vehicles category:"Stress test";
+	parameter "Final vehicle number:" var:end_vehicles category:"Stress test";
+	parameter "Enable vehicles increment:" var:enableIncrementalVehicles category:"Stress test";
+	parameter "Enable batch increase:" var:enableBatchIncrements category:"Stress test";
+	parameter "Batch number:" var:batch_number category:"Stress test";
+	parameter "Batch increase interval:" var:update_time category:"Stress test";
+	parameter "Add a car every n seconds(n>=1):" var:increaseEveryNSeconds category:"Stress test";
+
 		
 	output {
 		display city_display type:2d {
@@ -637,24 +1003,27 @@ experiment TrafficLightModel type: gui {
 			species road_node aspect:default ;
 		}
 		monitor "Number of trips" value: n_trips ;
+		monitor "Integrated acceleration" value: cumulative_acceleration ;
 		display "Symulation informations" refresh: every(60#cycles) type: 2d {
 			chart "Number of vehicles" type: series size: {0.5,0.5} position: {0,0} {
 				data "number of cars" value: length(car) color: #red ;
-				data "number of buses" value: length(bus) color: #blue ;
+				// data "number of buses" value: length(bus) color: #blue ;
+				data "Current average delta" value: mean(car collect each.delta) color: #blue use_second_y_axis: true ; 
 			}
 			chart "Successful trips" type: series size: {0.5,0.5} position: {0,0.5} {
 				data "number of successful trips" value: trips at (length(trips) - 1) color: #green ;
-				data "ten second average variation" value: trips at (length(trips) - 1) - trips at 0
-				color: #purple use_second_y_axis: true ;
+				// data "ten second average variation" value: trips at (length(trips) - 1) - trips at 0
+				// color: #purple use_second_y_axis: true ;
+				data "normalized integrated acceleration" value: cumulative_acceleration / max(trips at (length(trips) - 1),0.001) color: #purple use_second_y_axis: true ;
 			}
          	chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0.5} {
 				data "Mean vehicle speed" value: mean (car collect each.speed)  *3.6 style: line color: #purple ;
 				data "Max speed" value: car max_of (each.speed *3.6) style: line color: #red ;
-	     }
-	     chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} {
-				data "Nb stopped vehicles" value:  car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
-				data "Median_flux" value: mean(road collect each.car_count_per_hour) use_second_y_axis: true ;
-	     }
+			}
+			chart "Road Status" type: series size: {0.5, 0.5} position: {0.5, 0} y_range: [0, 100]{
+				data "Nb stopped vehicles" value:  100 * car count (each.speed <1) / (length(car)+1)  style: line color: #purple ;                 
+				data "Median_flux" value: mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour) use_second_y_axis: true ;
+			}
          
 		}
 	}
@@ -722,7 +1091,29 @@ experiment car_weight type: batch until: (cycle = 6*3600) keep_seed: true {
 	}
 }
 
-experiment validation_flux type: batch until: (cycle = 0.1*3600) keep_seed: true {
+experiment speed_weight_variation type: batch until: (cycle = 6*3600) keep_seed: true {
+	parameter "Speed weight" var: speed_weight min: 50.0 max: 100.0 step: 50.0 ;
+	method exploration ;
+	reflex save_trips {
+		loop i over: simulations {
+			save [i.speed_weight, last (i.trips), car_counts] format: "csv" to: "../results/validation_flux"+string(#now, 'yyyy-MM-dd-HH.mm.ss')+".csv" rewrite: false ;
+		}
+	}
+}
+
+experiment validation_flux type: batch  keep_seed: false until: (cycle = 3600) {
+	parameter "Car number" var: nb_vehicles among: vehicle_on_map_per_hour unit: "vehicle per hour";
+	method exploration;
+	init{
+		seed<-rnd(1.0);
+	}
+	reflex save_flux {
+		ask simulations {
+			 save [simulation.name,simulation.seed,nb_vehicles, mean((road where (each.is_main_road and distance_to(each.location,validation_center)<validation_radius)) collect each.car_count_per_hour)] format:"csv" to:"../validation/fluxes_final.csv" rewrite:false;
+	    }
+	}
+}
+experiment validation_flux_2 type: batch until: (cycle = 0.1*3600) keep_seed: true {
 	parameter "Speed weight" var: speed_weight min: 100.0 max: 100.0 step: 50.0 ;
 	method exploration ;
 	reflex save_trips {
